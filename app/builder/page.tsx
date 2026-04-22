@@ -1,14 +1,16 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { useMemo, useRef, useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Card from "@/components/ui/Card";
 import { useAppData } from "@/components/providers/AppDataProvider";
+import { getJourneyCardTheme, slugifyJourneyName } from "@/lib/data/journey-builder";
 import {
-  getJourneyCardTheme,
-  getJourneySubtitle,
-  slugifyJourneyName,
-} from "@/lib/data/journey-builder";
-import { createJourneyInDb, updateJourneyInDb, uploadJourneyArt } from "@/lib/data/db-builder";
+  createJourneyInDb,
+  updateJourneyInDb,
+  uploadJourneyArt,
+} from "@/lib/data/db-builder";
 
 const swatches = [
   "#7CC8D0",
@@ -24,13 +26,14 @@ const swatches = [
 ];
 
 type MenuType = "add" | "edit" | null;
-type ActionType = "journey" | "lesson" | null;
 
 type BuilderForm = {
   journeyId: string;
   surahName: string;
   cardColor: string;
   artImageUrl: string;
+  artPositionX: number;
+  artScale: number;
 };
 
 const emptyForm: BuilderForm = {
@@ -38,15 +41,18 @@ const emptyForm: BuilderForm = {
   surahName: "",
   cardColor: "#7CC8D0",
   artImageUrl: "",
+  artPositionX: 0,
+  artScale: 1,
 };
 
 export default function BuilderPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const { journeys, refreshJourneys, isLoadingJourneys } = useAppData();
 
   const [menuOpen, setMenuOpen] = useState<MenuType>(null);
-  const [activeAction, setActiveAction] = useState<ActionType>(null);
   const [mode, setMode] = useState<"add" | "edit">("add");
   const [selectedEditId, setSelectedEditId] = useState("");
   const [form, setForm] = useState<BuilderForm>(emptyForm);
@@ -56,17 +62,39 @@ export default function BuilderPage() {
   const [savedMessage, setSavedMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
+  useEffect(() => {
+    const queryMode = searchParams.get("mode");
+    const queryId = searchParams.get("id");
+
+    if (queryMode === "edit" && queryId && journeys.length > 0) {
+      const journey = journeys.find((item) => item.id === queryId);
+      if (!journey) return;
+
+      setMode("edit");
+      setSelectedEditId(journey.id);
+      setSelectedFile(null);
+      setPreviewImageUrl(journey.artImage ?? "");
+      setForm({
+        journeyId: journey.id,
+        surahName: journey.surahName,
+        cardColor: journey.cardColor ?? "#7CC8D0",
+        artImageUrl: journey.artImage ?? "",
+        artPositionX: journey.artPositionX ?? 0,
+        artScale: journey.artScale ?? 1,
+      });
+    } else if (queryMode === "add") {
+      setMode("add");
+      setSelectedEditId("");
+      setSelectedFile(null);
+      setPreviewImageUrl("");
+      setForm(emptyForm);
+    }
+  }, [searchParams, journeys]);
+
   const previewTheme = useMemo(
     () => getJourneyCardTheme(form.cardColor || "#7CC8D0"),
     [form.cardColor]
   );
-
-  const previewSubtitle = useMemo(() => {
-    return {
-      title: "This is your lesson title",
-      meta: "Lesson 1 of 2",
-    };
-  }, []);
 
   function resetMessages() {
     setSavedMessage("");
@@ -75,7 +103,6 @@ export default function BuilderPage() {
 
   function openAddJourney() {
     setMode("add");
-    setActiveAction("journey");
     setMenuOpen(null);
     resetMessages();
     setSelectedFile(null);
@@ -91,7 +118,6 @@ export default function BuilderPage() {
     const journey = journeys.find((item) => item.id === targetId) ?? firstJourney;
 
     setMode("edit");
-    setActiveAction("journey");
     setMenuOpen(null);
     resetMessages();
     setSelectedEditId(journey.id);
@@ -102,6 +128,8 @@ export default function BuilderPage() {
       surahName: journey.surahName,
       cardColor: journey.cardColor ?? "#7CC8D0",
       artImageUrl: journey.artImage ?? "",
+      artPositionX: journey.artPositionX ?? 0,
+      artScale: journey.artScale ?? 1,
     });
   }
 
@@ -144,32 +172,27 @@ export default function BuilderPage() {
           surahName: trimmedName,
           cardColor: form.cardColor,
           artImageUrl,
+          artPositionX: form.artPositionX,
+          artScale: form.artScale,
         });
 
         setSavedMessage("Journey added.");
-        setForm({
-          journeyId: resolvedJourneyId,
-          surahName: trimmedName,
-          cardColor: form.cardColor,
-          artImageUrl: artImageUrl ?? "",
-        });
       } else {
         await updateJourneyInDb({
           id: resolvedJourneyId,
           surahName: trimmedName,
           cardColor: form.cardColor,
           artImageUrl,
+          artPositionX: form.artPositionX,
+          artScale: form.artScale,
         });
 
         setSavedMessage("Journey updated.");
-        setForm((current) => ({
-          ...current,
-          artImageUrl: artImageUrl ?? "",
-        }));
       }
 
       setSelectedFile(null);
       await refreshJourneys();
+      router.push("/journeys");
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Something went wrong.";
@@ -179,7 +202,7 @@ export default function BuilderPage() {
     }
   }
 
-  const previewName = form.surahName.trim() || "Surah Name";
+  const previewName = form.surahName.trim() || "Name";
   const previewArt = previewImageUrl || form.artImageUrl;
 
   return (
@@ -195,6 +218,13 @@ export default function BuilderPage() {
           <p className="mt-3 max-w-sm text-[15px] leading-7 text-[#67625b]">
             Add and style journeys now. Lesson creation comes next.
           </p>
+
+          <Link
+            href="/journeys"
+            className="mt-4 inline-block rounded-full border border-[#d8d1c8] bg-white px-4 py-2 text-sm font-medium text-[#3f3a34] shadow-[0_8px_20px_rgba(0,0,0,0.05)]"
+          >
+            Back
+          </Link>
         </div>
 
         <div className="relative flex items-center gap-2">
@@ -278,6 +308,8 @@ export default function BuilderPage() {
                       surahName: journey.surahName,
                       cardColor: journey.cardColor ?? "#7CC8D0",
                       artImageUrl: journey.artImage ?? "",
+                      artPositionX: journey.artPositionX ?? 0,
+                      artScale: journey.artScale ?? 1,
                     });
                   }}
                   className="w-full rounded-2xl border border-[#ddd4c8] bg-[#fcfbf8] px-4 py-3 text-sm text-[#171717]"
@@ -331,7 +363,11 @@ export default function BuilderPage() {
                     <img
                       src={previewArt}
                       alt=""
-                      className="h-full w-full object-cover object-left"
+                      className="h-full w-full object-cover"
+                      style={{
+                        objectPosition: `${form.artPositionX}% center`,
+                        transform: `scale(${form.artScale})`,
+                      }}
                     />
                   </div>
                 ) : null}
@@ -354,17 +390,23 @@ export default function BuilderPage() {
               </span>
 
               <div className="flex items-center gap-3">
-                <input
-                  type="color"
-                  value={form.cardColor}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      cardColor: event.target.value,
-                    }))
-                  }
-                  className="h-12 w-16 cursor-pointer rounded-xl border border-[#ddd4c8] bg-transparent"
-                />
+                <label className="relative flex h-12 w-16 cursor-pointer items-center justify-center rounded-xl border border-[#ddd4c8] bg-white shadow-sm">
+                  <input
+                    type="color"
+                    value={form.cardColor}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        cardColor: event.target.value,
+                      }))
+                    }
+                    className="absolute inset-0 cursor-pointer opacity-0"
+                  />
+                  <div
+                    className="h-8 w-8 rounded-full border border-white shadow"
+                    style={{ background: form.cardColor }}
+                  />
+                </label>
 
                 <div className="flex flex-wrap gap-2">
                   {swatches.map((color) => (
@@ -385,6 +427,54 @@ export default function BuilderPage() {
               </div>
             </div>
 
+            <div>
+              <span className="mb-2 block text-sm font-medium text-[#3b3834]">
+                Art positioning
+              </span>
+
+              <div className="space-y-4 rounded-2xl bg-[#f8f5ef] p-4">
+                <label className="block">
+                  <span className="mb-2 block text-xs font-medium uppercase tracking-[0.14em] text-[#7b756d]">
+                    Horizontal position
+                  </span>
+                  <input
+                    type="range"
+                    min="-40"
+                    max="40"
+                    step="1"
+                    value={form.artPositionX}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        artPositionX: Number(event.target.value),
+                      }))
+                    }
+                    className="w-full"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="mb-2 block text-xs font-medium uppercase tracking-[0.14em] text-[#7b756d]">
+                    Scale
+                  </span>
+                  <input
+                    type="range"
+                    min="1"
+                    max="1.8"
+                    step="0.01"
+                    value={form.artScale}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        artScale: Number(event.target.value),
+                      }))
+                    }
+                    className="w-full"
+                  />
+                </label>
+              </div>
+            </div>
+
             <div className="rounded-2xl bg-[#f8f5ef] p-4">
               <p className="text-xs font-medium uppercase tracking-[0.18em] text-[#7b756d]">
                 Preview
@@ -400,7 +490,11 @@ export default function BuilderPage() {
                       <img
                         src={previewArt}
                         alt=""
-                        className="h-full w-full object-cover object-left"
+                        className="h-full w-full object-cover"
+                        style={{
+                          objectPosition: `${form.artPositionX}% center`,
+                          transform: `scale(${form.artScale})`,
+                        }}
                       />
                     ) : (
                       <div className="flex h-full w-full items-center justify-center bg-black/5 text-[11px] font-medium text-[#8a847c]">
@@ -428,13 +522,13 @@ export default function BuilderPage() {
                       <p
                         className={`mt-1 truncate text-[13px] font-semibold leading-5 ${previewTheme.subtitleClass}`}
                       >
-                        {previewSubtitle.title}
+                        This is your lesson title
                       </p>
 
                       <p
                         className={`mt-0.5 text-[12px] font-medium leading-5 ${previewTheme.metaClass}`}
                       >
-                        {previewSubtitle.meta}
+                        Lesson 1 of 2
                       </p>
                     </div>
 

@@ -25,6 +25,8 @@ export async function createJourneyInDb(input: {
   surahName: string;
   cardColor: string;
   artImageUrl: string | null;
+  artPositionX: number;
+  artScale: number;
 }) {
   const journeyId = slugifyJourneyName(input.surahName);
 
@@ -51,6 +53,8 @@ export async function createJourneyInDb(input: {
     description: null,
     card_color: input.cardColor,
     art_image_url: input.artImageUrl,
+    art_position_x: input.artPositionX,
+    art_scale: input.artScale,
     sort_order: nextSortOrder,
     is_published: true,
   });
@@ -67,6 +71,8 @@ export async function updateJourneyInDb(input: {
   surahName: string;
   cardColor: string;
   artImageUrl: string | null;
+  artPositionX: number;
+  artScale: number;
 }) {
   const { error } = await supabase
     .from("journeys")
@@ -74,6 +80,8 @@ export async function updateJourneyInDb(input: {
       surah_name: input.surahName,
       card_color: input.cardColor,
       art_image_url: input.artImageUrl,
+      art_position_x: input.artPositionX,
+      art_scale: input.artScale,
     })
     .eq("id", input.id);
 

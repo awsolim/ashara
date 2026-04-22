@@ -29,5 +29,7 @@ export type Journey = {
   description?: string;
   cardColor?: string;
   artImage?: string;
+  artPositionX?: number;
+  artScale?: number;
   segments: Segment[];
 };

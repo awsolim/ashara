@@ -329,21 +329,25 @@ export default function HomePage() {
                 <Button disabled>All lessons completed</Button>
               ) : currentSegment ? (
                 <Link href={`/session/${currentSegment.id}`} className="block">
-                  <button className="w-full rounded-2xl bg-[#1d5f63] px-4 py-4 text-base font-medium tracking-tight text-white shadow-[0_8px_20px_rgba(0,0,0,0.12)] transition active:scale-[0.985]">
-                    Continue lesson
-                  </button>
-                </Link>
+  <button
+    className="w-full rounded-2xl px-4 py-4 text-base font-medium tracking-tight text-white shadow-[0_8px_20px_rgba(0,0,0,0.12)] transition active:scale-[0.985]"
+    style={{ backgroundColor: selectedJourney?.cardColor ?? "#1d5f63" }}
+  >
+    Continue lesson
+  </button>
+</Link>
               ) : (
                 <Button disabled>No lessons yet</Button>
               )}
 
               <button
-                type="button"
-                onClick={resetCurrentJourneyProgress}
-                className="w-full rounded-2xl bg-[#1d5f63] px-4 py-4 text-base font-medium tracking-tight text-white shadow-[0_8px_20px_rgba(0,0,0,0.12)] transition active:scale-[0.985]"
-              >
-                Reset progress
-              </button>
+  type="button"
+  onClick={resetCurrentJourneyProgress}
+  className="w-full rounded-2xl px-4 py-4 text-base font-medium tracking-tight text-white shadow-[0_8px_20px_rgba(0,0,0,0.12)] transition active:scale-[0.985]"
+  style={{ backgroundColor: selectedJourney?.cardColor ?? "#1d5f63" }}
+>
+  Reset progress
+</button>
             </div>
           </Card>
         </section>

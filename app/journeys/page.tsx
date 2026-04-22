@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import BottomNav from "@/components/navigation/BottomNav";
 import {
   getCompletedSegmentIds,
@@ -14,6 +15,8 @@ import {
 import { useAppData } from "@/components/providers/AppDataProvider";
 
 export default function JourneysPage() {
+  const router = useRouter();
+
   const {
     journeys,
     selectedJourneyId,
@@ -22,21 +25,22 @@ export default function JourneysPage() {
   } = useAppData();
 
   const [openMenu, setOpenMenu] = useState<"add" | "edit" | null>(null);
-const menuRef = useRef<HTMLDivElement | null>(null);
+  const [isEditPicking, setIsEditPicking] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
 
-useEffect(() => {
-  function handleClickOutside(event: MouseEvent) {
-    if (!menuRef.current) return;
-    if (!menuRef.current.contains(event.target as Node)) {
-      setOpenMenu(null);
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (!menuRef.current) return;
+      if (!menuRef.current.contains(event.target as Node)) {
+        setOpenMenu(null);
+      }
     }
-  }
 
-  document.addEventListener("mousedown", handleClickOutside);
-  return () => {
-    document.removeEventListener("mousedown", handleClickOutside);
-  };
-}, []);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   const journeyCards = useMemo(() => {
     return journeys.map((journey) => {
@@ -57,93 +61,113 @@ useEffect(() => {
     });
   }, [journeys]);
 
+  function handleJourneyClick(journeyId: string) {
+    if (isEditPicking) {
+      setIsEditPicking(false);
+      router.push(`/builder?mode=edit&id=${journeyId}`);
+      return;
+    }
+
+    setSelectedJourneyId(journeyId);
+    router.push("/home");
+  }
+
   return (
     <>
       <main className="min-h-screen px-5 pb-32 pt-8">
         <section className="flex items-start justify-between gap-4">
-  <div>
-    <p className="text-xs font-medium uppercase tracking-[0.18em] text-[#7b756d]">
-      Journeys
-    </p>
+          <div>
+            <p className="text-xs font-medium uppercase tracking-[0.18em] text-[#7b756d]">
+              Journeys
+            </p>
 
-    <h1 className="mt-2 text-[2rem] font-semibold tracking-tight text-[#171717]">
-      Choose a journey
-    </h1>
+            <h1 className="mt-2 text-[2rem] font-semibold tracking-tight text-[#171717]">
+              Choose a journey
+            </h1>
 
-    <p className="mt-3 max-w-sm text-[15px] leading-7 text-[#67625b]">
-      Pick a surah path to continue with reflection, understanding, and
-      action.
-    </p>
-  </div>
+            <p className="mt-3 max-w-sm text-[15px] leading-7 text-[#67625b]">
+              Pick a surah path to continue with reflection, understanding, and
+              action.
+            </p>
+          </div>
 
-  <div ref={menuRef} className="relative flex items-center gap-2">
-    <div className="relative">
-      <button
-        type="button"
-        onClick={() =>
-          setOpenMenu((current) => (current === "add" ? null : "add"))
-        }
-        className="flex h-11 w-11 items-center justify-center rounded-full border border-[#d8d1c8] bg-white text-[24px] leading-none text-[#3f3a34] shadow-[0_8px_20px_rgba(0,0,0,0.05)]"
-      >
-        <span className="relative -top-[1px]">+</span>
-      </button>
+          <div ref={menuRef} className="relative flex items-center gap-2">
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() =>
+                  setOpenMenu((current) => (current === "add" ? null : "add"))
+                }
+                className="flex h-11 w-11 items-center justify-center rounded-full border border-[#d8d1c8] bg-white text-[24px] leading-none text-[#3f3a34] shadow-[0_8px_20px_rgba(0,0,0,0.05)]"
+              >
+                <span className="relative -top-[1px]">+</span>
+              </button>
 
-      {openMenu === "add" ? (
-        <div className="absolute right-0 top-[calc(100%+8px)] z-20 min-w-[180px] rounded-2xl border border-[#e3dbcf] bg-white p-2 shadow-[0_14px_30px_rgba(0,0,0,0.10)]">
-          <Link
-            href="/builder"
-            onClick={() => setOpenMenu(null)}
-            className="block rounded-xl px-3 py-2 text-sm font-medium text-[#171717] hover:bg-[#f6f1e8]"
-          >
-            Add journey
-          </Link>
+              {openMenu === "add" ? (
+                <div className="absolute right-0 top-[calc(100%+8px)] z-20 min-w-[180px] rounded-2xl border border-[#e3dbcf] bg-white p-2 shadow-[0_14px_30px_rgba(0,0,0,0.10)]">
+                  <Link
+                    href="/builder?mode=add"
+                    onClick={() => setOpenMenu(null)}
+                    className="block rounded-xl px-3 py-2 text-sm font-medium text-[#171717] hover:bg-[#f6f1e8]"
+                  >
+                    Add journey
+                  </Link>
 
-          <button
-            type="button"
-            disabled
-            className="block w-full rounded-xl px-3 py-2 text-left text-sm font-medium text-[#a0998e]"
-          >
-            Add lesson (later)
-          </button>
-        </div>
-      ) : null}
-    </div>
+                  <button
+                    type="button"
+                    disabled
+                    className="block w-full rounded-xl px-3 py-2 text-left text-sm font-medium text-[#a0998e]"
+                  >
+                    Add lesson (later)
+                  </button>
+                </div>
+              ) : null}
+            </div>
 
-    <div className="relative">
-      <button
-        type="button"
-        onClick={() =>
-          setOpenMenu((current) => (current === "edit" ? null : "edit"))
-        }
-        className="rounded-full border border-[#d8d1c8] bg-white px-4 py-3 text-sm font-medium text-[#3f3a34] shadow-[0_8px_20px_rgba(0,0,0,0.05)]"
-      >
-        Edit
-      </button>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() =>
+                  setOpenMenu((current) => (current === "edit" ? null : "edit"))
+                }
+                className="rounded-full border border-[#d8d1c8] bg-white px-4 py-3 text-sm font-medium text-[#3f3a34] shadow-[0_8px_20px_rgba(0,0,0,0.05)]"
+              >
+                Edit
+              </button>
 
-      {openMenu === "edit" ? (
-        <div className="absolute right-0 top-[calc(100%+8px)] z-20 min-w-[180px] rounded-2xl border border-[#e3dbcf] bg-white p-2 shadow-[0_14px_30px_rgba(0,0,0,0.10)]">
-          <Link
-            href="/builder"
-            onClick={() => setOpenMenu(null)}
-            className="block rounded-xl px-3 py-2 text-sm font-medium text-[#171717] hover:bg-[#f6f1e8]"
-          >
-            Edit journey
-          </Link>
+              {openMenu === "edit" ? (
+                <div className="absolute right-0 top-[calc(100%+8px)] z-20 min-w-[180px] rounded-2xl border border-[#e3dbcf] bg-white p-2 shadow-[0_14px_30px_rgba(0,0,0,0.10)]">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpenMenu(null);
+                      setIsEditPicking(true);
+                    }}
+                    className="block w-full rounded-xl px-3 py-2 text-left text-sm font-medium text-[#171717] hover:bg-[#f6f1e8]"
+                  >
+                    Edit journey
+                  </button>
 
-          <button
-            type="button"
-            disabled
-            className="block w-full rounded-xl px-3 py-2 text-left text-sm font-medium text-[#a0998e]"
-          >
-            Edit lesson (later)
-          </button>
-        </div>
-      ) : null}
-    </div>
-  </div>
-</section>
+                  <button
+                    type="button"
+                    disabled
+                    className="block w-full rounded-xl px-3 py-2 text-left text-sm font-medium text-[#a0998e]"
+                  >
+                    Edit lesson (later)
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </section>
 
-        <section className="mt-7 space-y-5">
+        {isEditPicking ? (
+          <div className="mt-5 rounded-2xl border border-[#d8d1c8] bg-white px-4 py-3 text-sm font-medium text-[#3f3a34] shadow-[0_8px_20px_rgba(0,0,0,0.05)]">
+            Select a journey card to edit.
+          </div>
+        ) : null}
+
+        <section className={`mt-7 space-y-5 ${isEditPicking ? "relative" : ""}`}>
           {isLoadingJourneys ? (
             <>
               {[1, 2].map((item) => (
@@ -172,22 +196,32 @@ useEffect(() => {
               <button
                 key={journey.id}
                 type="button"
-                onClick={() => setSelectedJourneyId(journey.id)}
-                className="block w-full text-left"
+                onClick={() => handleJourneyClick(journey.id)}
+                className={`block w-full text-left transition ${
+                  isEditPicking ? "scale-[1.01]" : ""
+                }`}
               >
                 <div
                   className={`relative overflow-hidden rounded-[28px] shadow-[0_14px_30px_rgba(0,0,0,0.10)] transition duration-200 hover:scale-[1.01] active:scale-[0.995] ${
                     isSelected ? "ring-2 ring-white/70" : ""
-                  }`}
+                  } ${isEditPicking ? "ring-2 ring-white/80" : ""}`}
                   style={{ backgroundColor: journey.cardColor ?? "#7CC8D0" }}
                 >
+                  {isEditPicking ? (
+                    <div className="pointer-events-none absolute inset-0 bg-black/8" />
+                  ) : null}
+
                   <div className="flex min-h-[122px]">
                     <div className="relative w-[22%] shrink-0 overflow-hidden rounded-l-[28px]">
                       {journey.artImage ? (
                         <img
                           src={journey.artImage}
                           alt=""
-                          className="h-full w-full object-cover object-left"
+                          className="h-full w-full object-cover"
+                          style={{
+                            objectPosition: `${journey.artPositionX ?? 0}% center`,
+                            transform: `scale(${journey.artScale ?? 1})`,
+                          }}
                         />
                       ) : (
                         <div className="h-full w-full bg-black/5" />

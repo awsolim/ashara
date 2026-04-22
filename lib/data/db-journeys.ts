@@ -8,6 +8,8 @@ type JourneyRow = {
   description: string | null;
   card_color: string | null;
   art_image_url: string | null;
+  art_position_x: number | null;
+  art_scale: number | null;
   sort_order: number;
   is_published: boolean;
 };
@@ -73,6 +75,8 @@ function mapJourney(row: JourneyRow, segments: Segment[]): Journey {
     description: row.description ?? undefined,
     cardColor: row.card_color ?? undefined,
     artImage: row.art_image_url ?? undefined,
+    artPositionX: row.art_position_x ?? 0,
+    artScale: row.art_scale ?? 1,
     segments,
   };
 }
