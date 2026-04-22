@@ -1,6 +1,6 @@
 export type Question = {
-  id: string;
-  type: "multiple_choice" | "scenario";
+  id?: string;
+  type?: string;
   prompt: string;
   options: string[];
   correctAnswer: string;
@@ -9,23 +9,25 @@ export type Question = {
 
 export type Segment = {
   id: string;
+  title: string;
   ayahStart: number;
   ayahEnd: number;
-  title: string;
-  focusAnchor: string;
-  arabic: string;
-  translation: string;
+  arabic?: string;
+  translation?: string;
   insights: string[];
+  focusAnchor: string;
   background?: string;
-  questions: Question[];
   reflectionPrompt: string;
   actionOptions: string[];
+  questions?: Question[];
 };
 
 export type Journey = {
   id: string;
   surahName: string;
-  surahLabel: string;
-  description: string;
+  surahLabel?: string;
+  description?: string;
+  cardColor?: string;
+  artImage?: string;
   segments: Segment[];
 };

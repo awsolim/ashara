@@ -1,592 +1,509 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import type { Segment } from "@/lib/data/types";
+import { useMemo, useRef, useState } from "react";
+import Card from "@/components/ui/Card";
+import { useAppData } from "@/components/providers/AppDataProvider";
+import {
+  getJourneyCardTheme,
+  getJourneySubtitle,
+  slugifyJourneyName,
+} from "@/lib/data/journey-builder";
+import { createJourneyInDb, updateJourneyInDb, uploadJourneyArt } from "@/lib/data/db-builder";
 
-function splitLines(value: string) {
-  return value
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
-}
+const swatches = [
+  "#7CC8D0",
+  "#7A9660",
+  "#D9C07A",
+  "#B8A8D8",
+  "#D8A18A",
+  "#8BA6D9",
+  "#91B8A8",
+  "#C79D7C",
+  "#A55D52",
+  "#5F7DB8",
+];
 
-function escapeForCode(value: string) {
-  return value
-    .replace(/\\/g, "\\\\")
-    .replace(/`/g, "\\`")
-    .replace(/\$\{/g, "\\${");
-}
+type MenuType = "add" | "edit" | null;
+type ActionType = "journey" | "lesson" | null;
+
+type BuilderForm = {
+  journeyId: string;
+  surahName: string;
+  cardColor: string;
+  artImageUrl: string;
+};
+
+const emptyForm: BuilderForm = {
+  journeyId: "",
+  surahName: "",
+  cardColor: "#7CC8D0",
+  artImageUrl: "",
+};
 
 export default function BuilderPage() {
-  const [segmentId, setSegmentId] = useState("mulk-3");
-  const [ayahStart, setAyahStart] = useState("12");
-  const [ayahEnd, setAyahEnd] = useState("15");
-  const [title, setTitle] = useState("Walk the earth with awareness");
-  const [focusAnchor, setFocusAnchor] = useState(
-    "These ayat call the believer to live with awareness of Allah’s knowledge, power, and provision."
-  );
-  const [arabic, setArabic] = useState("");
-  const [translation, setTranslation] = useState("");
-  const [background, setBackground] = useState("");
-  const [insightsText, setInsightsText] = useState(
-    "Allah knows what is hidden as well as what is spoken openly.\nThe earth is made manageable for people, but that does not mean independence from Allah.\nProvision should lead to gratitude and awareness, not heedlessness."
-  );
-  const [questionId, setQuestionId] = useState("mulk-3-q1");
-  const [questionType, setQuestionType] = useState<"multiple_choice" | "scenario">(
-    "multiple_choice"
-  );
-  const [questionPrompt, setQuestionPrompt] = useState(
-    "What is the main attitude these ayat encourage?"
-  );
-  const [questionOptionsText, setQuestionOptionsText] = useState(
-    "Self-sufficiency\nAwareness and gratitude\nFear of effort"
-  );
-  const [correctAnswer, setCorrectAnswer] = useState("Awareness and gratitude");
-  const [questionExplanation, setQuestionExplanation] = useState(
-    "The ayat connect Allah’s knowledge, mastery, and provision to a life of grateful awareness."
-  );
-  const [reflectionPrompt, setReflectionPrompt] = useState(
-    "Where in your daily routine do you move through Allah’s blessings without awareness or gratitude?"
-  );
-  const [actionOptionsText, setActionOptionsText] = useState(
-    "Pause before one meal today and thank Allah consciously.\nTake one ordinary routine and do it with more awareness of Allah.\nNotice one blessing today and mention it in du'a."
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const { journeys, refreshJourneys, isLoadingJourneys } = useAppData();
+
+  const [menuOpen, setMenuOpen] = useState<MenuType>(null);
+  const [activeAction, setActiveAction] = useState<ActionType>(null);
+  const [mode, setMode] = useState<"add" | "edit">("add");
+  const [selectedEditId, setSelectedEditId] = useState("");
+  const [form, setForm] = useState<BuilderForm>(emptyForm);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewImageUrl, setPreviewImageUrl] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [savedMessage, setSavedMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
+
+  const previewTheme = useMemo(
+    () => getJourneyCardTheme(form.cardColor || "#7CC8D0"),
+    [form.cardColor]
   );
 
-  const insights = useMemo(() => splitLines(insightsText), [insightsText]);
-  const questionOptions = useMemo(
-    () => splitLines(questionOptionsText),
-    [questionOptionsText]
-  );
-  const actionOptions = useMemo(
-    () => splitLines(actionOptionsText),
-    [actionOptionsText]
-  );
-
-  const segment: Segment = useMemo(
-    () => ({
-      id: segmentId.trim(),
-      ayahStart: Number(ayahStart) || 0,
-      ayahEnd: Number(ayahEnd) || 0,
-      title: title.trim(),
-      focusAnchor: focusAnchor.trim(),
-      arabic: arabic.trim(),
-      translation: translation.trim(),
-      ...(background.trim() ? { background: background.trim() } : {}),
-      insights,
-      questions: [
-        {
-          id: questionId.trim(),
-          type: questionType,
-          prompt: questionPrompt.trim(),
-          options: questionOptions,
-          correctAnswer: correctAnswer.trim(),
-          ...(questionExplanation.trim()
-            ? { explanation: questionExplanation.trim() }
-            : {}),
-        },
-      ],
-      reflectionPrompt: reflectionPrompt.trim(),
-      actionOptions,
-    }),
-    [
-      actionOptions,
-      arabic,
-      ayahEnd,
-      ayahStart,
-      background,
-      correctAnswer,
-      focusAnchor,
-      insights,
-      questionExplanation,
-      questionId,
-      questionOptions,
-      questionPrompt,
-      questionType,
-      reflectionPrompt,
-      segmentId,
-      title,
-      translation,
-    ]
-  );
-
-  const validation = useMemo(() => {
-    const errors: string[] = [];
-
-    if (!segment.id) errors.push("Segment id is required.");
-    if (!segment.title) errors.push("Title is required.");
-    if (!segment.focusAnchor) errors.push("Focus anchor is required.");
-    if (!segment.reflectionPrompt) errors.push("Reflection prompt is required.");
-    if (!segment.questions[0]?.id) errors.push("Question id is required.");
-    if (!segment.questions[0]?.prompt) errors.push("Question prompt is required.");
-    if (segment.ayahStart <= 0) errors.push("Ayah start must be greater than 0.");
-    if (segment.ayahEnd <= 0) errors.push("Ayah end must be greater than 0.");
-    if (segment.ayahEnd < segment.ayahStart) {
-      errors.push("Ayah end must be greater than or equal to ayah start.");
-    }
-    if (segment.insights.length === 0) errors.push("Add at least one insight.");
-    if (segment.questions[0]?.options.length < 2) {
-      errors.push("Add at least two question options.");
-    }
-    if (!segment.questions[0]?.correctAnswer) {
-      errors.push("Correct answer is required.");
-    }
-    if (segment.actionOptions.length === 0) {
-      errors.push("Add at least one action option.");
-    }
-
+  const previewSubtitle = useMemo(() => {
     return {
-      isValid: errors.length === 0,
-      errors,
+      title: "This is your lesson title",
+      meta: "Lesson 1 of 2",
     };
-  }, [segment]);
+  }, []);
 
-  const generatedCode = useMemo(() => {
-    const insightsCode = insights
-      .map((item) => `    "${escapeForCode(item)}"`)
-      .join(",\n");
+  function resetMessages() {
+    setSavedMessage("");
+    setErrorMessage("");
+  }
 
-    const optionsCode = questionOptions
-      .map((item) => `        "${escapeForCode(item)}"`)
-      .join(",\n");
+  function openAddJourney() {
+    setMode("add");
+    setActiveAction("journey");
+    setMenuOpen(null);
+    resetMessages();
+    setSelectedFile(null);
+    setPreviewImageUrl("");
+    setForm(emptyForm);
+  }
 
-    const actionsCode = actionOptions
-      .map((item) => `    "${escapeForCode(item)}"`)
-      .join(",\n");
+  function openEditJourney() {
+    const firstJourney = journeys[0];
+    if (!firstJourney) return;
 
-    return `{
-  id: "${escapeForCode(segment.id)}",
-  ayahStart: ${segment.ayahStart},
-  ayahEnd: ${segment.ayahEnd},
-  title: "${escapeForCode(segment.title)}",
-  focusAnchor: "${escapeForCode(segment.focusAnchor)}",
-  arabic: \`${escapeForCode(segment.arabic)}\`,
-  translation: \`${escapeForCode(segment.translation)}\`,
-${
-  segment.background
-    ? `  background: "${escapeForCode(segment.background)}",\n`
-    : ""
-}  insights: [
-${insightsCode}
-  ],
-  questions: [
-    {
-      id: "${escapeForCode(segment.questions[0].id)}",
-      type: "${segment.questions[0].type}",
-      prompt: "${escapeForCode(segment.questions[0].prompt)}",
-      options: [
-${optionsCode}
-      ],
-      correctAnswer: "${escapeForCode(segment.questions[0].correctAnswer)}",${
-        segment.questions[0].explanation
-          ? `\n      explanation: "${escapeForCode(
-              segment.questions[0].explanation
-            )}",`
-          : ""
-      }
+    const targetId = selectedEditId || firstJourney.id;
+    const journey = journeys.find((item) => item.id === targetId) ?? firstJourney;
+
+    setMode("edit");
+    setActiveAction("journey");
+    setMenuOpen(null);
+    resetMessages();
+    setSelectedEditId(journey.id);
+    setSelectedFile(null);
+    setPreviewImageUrl(journey.artImage ?? "");
+    setForm({
+      journeyId: journey.id,
+      surahName: journey.surahName,
+      cardColor: journey.cardColor ?? "#7CC8D0",
+      artImageUrl: journey.artImage ?? "",
+    });
+  }
+
+  function handleImageUpload(file?: File | null) {
+    if (!file) return;
+
+    setSelectedFile(file);
+
+    const objectUrl = URL.createObjectURL(file);
+    setPreviewImageUrl(objectUrl);
+  }
+
+  async function saveJourney() {
+    const trimmedName = form.surahName.trim();
+
+    if (!trimmedName) {
+      setErrorMessage("Journey name is required.");
+      return;
     }
-  ],
-  reflectionPrompt: "${escapeForCode(segment.reflectionPrompt)}",
-  actionOptions: [
-${actionsCode}
-  ]
-}`;
-  }, [actionOptions, insights, questionOptions, segment]);
 
-  async function copyGeneratedCode() {
+    setIsSaving(true);
+    resetMessages();
+
     try {
-      await navigator.clipboard.writeText(generatedCode);
-    } catch {
-      // no-op
+      const resolvedJourneyId =
+        mode === "add" ? slugifyJourneyName(trimmedName) : form.journeyId;
+
+      if (!resolvedJourneyId) {
+        throw new Error("Could not generate a journey id.");
+      }
+
+      let artImageUrl: string | null = form.artImageUrl || null;
+
+      if (selectedFile) {
+        artImageUrl = await uploadJourneyArt(selectedFile, resolvedJourneyId);
+      }
+
+      if (mode === "add") {
+        await createJourneyInDb({
+          surahName: trimmedName,
+          cardColor: form.cardColor,
+          artImageUrl,
+        });
+
+        setSavedMessage("Journey added.");
+        setForm({
+          journeyId: resolvedJourneyId,
+          surahName: trimmedName,
+          cardColor: form.cardColor,
+          artImageUrl: artImageUrl ?? "",
+        });
+      } else {
+        await updateJourneyInDb({
+          id: resolvedJourneyId,
+          surahName: trimmedName,
+          cardColor: form.cardColor,
+          artImageUrl,
+        });
+
+        setSavedMessage("Journey updated.");
+        setForm((current) => ({
+          ...current,
+          artImageUrl: artImageUrl ?? "",
+        }));
+      }
+
+      setSelectedFile(null);
+      await refreshJourneys();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Something went wrong.";
+      setErrorMessage(message);
+    } finally {
+      setIsSaving(false);
     }
   }
 
+  const previewName = form.surahName.trim() || "Surah Name";
+  const previewArt = previewImageUrl || form.artImageUrl;
+
   return (
-    <main className="min-h-screen p-6">
-      <div className="pt-8">
-        <p className="text-sm text-neutral-500">Internal builder</p>
-        <h1 className="mt-3 text-3xl font-semibold tracking-tight text-neutral-900">
-          Lesson segment builder
-        </h1>
-        <p className="mt-4 max-w-2xl text-base leading-7 text-neutral-600">
-          Use this to draft a valid segment object for your journey files. Fill
-          in the fields, review the preview, then copy the generated object into
-          your surah file.
-        </p>
-      </div>
+    <main className="min-h-screen px-5 pb-24 pt-8">
+      <section className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-[0.18em] text-[#7b756d]">
+            Builder
+          </p>
+          <h1 className="mt-2 text-[2rem] font-semibold tracking-tight text-[#171717]">
+            Journey builder
+          </h1>
+          <p className="mt-3 max-w-sm text-[15px] leading-7 text-[#67625b]">
+            Add and style journeys now. Lesson creation comes next.
+          </p>
+        </div>
 
-      <div className="mt-8 grid gap-6 lg:grid-cols-2">
-        <section className="rounded-3xl border border-neutral-200 bg-white p-5">
-          <h2 className="text-xl font-semibold text-neutral-900">Inputs</h2>
+        <div className="relative flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setMenuOpen(menuOpen === "add" ? null : "add")}
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-[#d8d1c8] bg-white text-xl text-[#3f3a34] shadow-[0_8px_20px_rgba(0,0,0,0.05)]"
+          >
+            +
+          </button>
 
-          <div className="mt-5 space-y-5">
-            <div className="grid gap-4 sm:grid-cols-3">
-              <Field
-                label="Segment id"
-                value={segmentId}
-                onChange={setSegmentId}
-                placeholder="mulk-3"
-              />
-              <Field
-                label="Ayah start"
-                value={ayahStart}
-                onChange={setAyahStart}
-                placeholder="12"
-              />
-              <Field
-                label="Ayah end"
-                value={ayahEnd}
-                onChange={setAyahEnd}
-                placeholder="15"
-              />
-            </div>
+          <button
+            type="button"
+            onClick={() => setMenuOpen(menuOpen === "edit" ? null : "edit")}
+            className="rounded-full border border-[#d8d1c8] bg-white px-4 py-3 text-sm font-medium text-[#3f3a34] shadow-[0_8px_20px_rgba(0,0,0,0.05)]"
+          >
+            Edit
+          </button>
 
-            <Field
-              label="Title"
-              value={title}
-              onChange={setTitle}
-              placeholder="Walk the earth with awareness"
-            />
-
-            <TextareaField
-              label="Focus anchor"
-              value={focusAnchor}
-              onChange={setFocusAnchor}
-              rows={3}
-              placeholder="One clear takeaway for this segment"
-            />
-
-            <TextareaField
-              label="Arabic text"
-              value={arabic}
-              onChange={setArabic}
-              rows={6}
-              placeholder="Paste the Arabic ayat here for now"
-            />
-
-            <TextareaField
-              label="Translation"
-              value={translation}
-              onChange={setTranslation}
-              rows={5}
-              placeholder="Paste the translation here for now"
-            />
-
-            <TextareaField
-              label="Background / context (optional)"
-              value={background}
-              onChange={setBackground}
-              rows={3}
-              placeholder="Optional context note"
-            />
-
-            <TextareaField
-              label="Insights (one per line)"
-              value={insightsText}
-              onChange={setInsightsText}
-              rows={5}
-              placeholder="Enter one insight per line"
-            />
-
-            <div className="rounded-2xl border border-neutral-200 p-4">
-              <h3 className="text-base font-semibold text-neutral-900">
-                Question
-              </h3>
-
-              <div className="mt-4 space-y-4">
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <Field
-                    label="Question id"
-                    value={questionId}
-                    onChange={setQuestionId}
-                    placeholder="mulk-3-q1"
-                  />
-
-                  <div>
-                    <label className="mb-2 block text-sm font-medium text-neutral-700">
-                      Question type
-                    </label>
-                    <select
-                      value={questionType}
-                      onChange={(e) =>
-                        setQuestionType(
-                          e.target.value as "multiple_choice" | "scenario"
-                        )
-                      }
-                      className="w-full rounded-xl border border-neutral-300 bg-white px-3 py-3 text-sm text-neutral-900 outline-none transition focus:border-neutral-900"
-                    >
-                      <option value="multiple_choice">multiple_choice</option>
-                      <option value="scenario">scenario</option>
-                    </select>
-                  </div>
-                </div>
-
-                <TextareaField
-                  label="Question prompt"
-                  value={questionPrompt}
-                  onChange={setQuestionPrompt}
-                  rows={3}
-                  placeholder="Enter the question"
-                />
-
-                <TextareaField
-                  label="Question options (one per line)"
-                  value={questionOptionsText}
-                  onChange={setQuestionOptionsText}
-                  rows={4}
-                  placeholder="Enter one option per line"
-                />
-
-                <Field
-                  label="Correct answer"
-                  value={correctAnswer}
-                  onChange={setCorrectAnswer}
-                  placeholder="Must match one of the options"
-                />
-
-                <TextareaField
-                  label="Question explanation (optional)"
-                  value={questionExplanation}
-                  onChange={setQuestionExplanation}
-                  rows={3}
-                  placeholder="Optional explanation shown after answering"
-                />
-              </div>
-            </div>
-
-            <TextareaField
-              label="Reflection prompt"
-              value={reflectionPrompt}
-              onChange={setReflectionPrompt}
-              rows={3}
-              placeholder="Where does this apply in the user's life?"
-            />
-
-            <TextareaField
-              label="Action options (one per line)"
-              value={actionOptionsText}
-              onChange={setActionOptionsText}
-              rows={4}
-              placeholder="Enter one action option per line"
-            />
-          </div>
-        </section>
-
-        <div className="space-y-6">
-          <section className="rounded-3xl border border-neutral-200 bg-white p-5">
-            <div className="flex items-center justify-between gap-4">
-              <h2 className="text-xl font-semibold text-neutral-900">Preview</h2>
-              <div
-                className={`rounded-full px-3 py-1 text-sm ${
-                  validation.isValid
-                    ? "bg-neutral-900 text-white"
-                    : "bg-neutral-100 text-neutral-700"
-                }`}
-              >
-                {validation.isValid ? "Valid enough" : "Needs fixes"}
-              </div>
-            </div>
-
-            {!validation.isValid ? (
-              <div className="mt-4 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-                <p className="text-sm font-medium text-neutral-800">
-                  Missing or invalid fields
-                </p>
-                <ul className="mt-3 space-y-2 text-sm text-neutral-600">
-                  {validation.errors.map((error) => (
-                    <li key={error}>• {error}</li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
-
-            <div className="mt-5 space-y-5">
-              <PreviewBlock label="Id" value={segment.id || "—"} />
-              <PreviewBlock
-                label="Ayah range"
-                value={
-                  segment.ayahStart > 0 && segment.ayahEnd > 0
-                    ? `${segment.ayahStart}–${segment.ayahEnd}`
-                    : "—"
-                }
-              />
-              <PreviewBlock label="Title" value={segment.title || "—"} />
-              <PreviewBlock
-                label="Focus anchor"
-                value={segment.focusAnchor || "—"}
-              />
-              <PreviewBlock
-                label="Arabic"
-                value={segment.arabic || "No Arabic added yet."}
-                preserveWhitespace
-              />
-              <PreviewBlock
-                label="Translation"
-                value={segment.translation || "No translation added yet."}
-              />
-              {segment.background ? (
-                <PreviewBlock label="Background" value={segment.background} />
-              ) : null}
-
-              <div>
-                <p className="text-sm font-medium text-neutral-700">Insights</p>
-                <ul className="mt-3 space-y-2 text-sm leading-6 text-neutral-800">
-                  {segment.insights.length > 0 ? (
-                    segment.insights.map((insight) => (
-                      <li key={insight}>• {insight}</li>
-                    ))
-                  ) : (
-                    <li>No insights yet.</li>
-                  )}
-                </ul>
-              </div>
-
-              <div>
-                <p className="text-sm font-medium text-neutral-700">Question</p>
-                <div className="mt-3 rounded-2xl border border-neutral-200 p-4">
-                  <p className="text-sm text-neutral-500">
-                    {segment.questions[0]?.type ?? "—"}
-                  </p>
-                  <p className="mt-2 text-base font-medium text-neutral-900">
-                    {segment.questions[0]?.prompt || "No question prompt yet."}
-                  </p>
-                  <ul className="mt-3 space-y-2 text-sm text-neutral-700">
-                    {segment.questions[0]?.options.length ? (
-                      segment.questions[0].options.map((option) => (
-                        <li key={option}>• {option}</li>
-                      ))
-                    ) : (
-                      <li>No options yet.</li>
-                    )}
-                  </ul>
-                  <p className="mt-3 text-sm text-neutral-600">
-                    Correct answer:{" "}
-                    <span className="font-medium text-neutral-900">
-                      {segment.questions[0]?.correctAnswer || "—"}
-                    </span>
-                  </p>
-                </div>
-              </div>
-
-              <PreviewBlock
-                label="Reflection prompt"
-                value={segment.reflectionPrompt || "—"}
-              />
-
-              <div>
-                <p className="text-sm font-medium text-neutral-700">
-                  Action options
-                </p>
-                <ul className="mt-3 space-y-2 text-sm leading-6 text-neutral-800">
-                  {segment.actionOptions.length > 0 ? (
-                    segment.actionOptions.map((action) => (
-                      <li key={action}>• {action}</li>
-                    ))
-                  ) : (
-                    <li>No action options yet.</li>
-                  )}
-                </ul>
-              </div>
-            </div>
-          </section>
-
-          <section className="rounded-3xl border border-neutral-200 bg-white p-5">
-            <div className="flex items-center justify-between gap-4">
-              <h2 className="text-xl font-semibold text-neutral-900">
-                Generated object
-              </h2>
+          {menuOpen === "add" ? (
+            <div className="absolute right-0 top-14 z-20 min-w-[180px] rounded-2xl border border-[#e3dbcf] bg-white p-2 shadow-[0_14px_30px_rgba(0,0,0,0.10)]">
               <button
                 type="button"
-                onClick={copyGeneratedCode}
-                className="rounded-xl border border-neutral-300 px-3 py-2 text-sm text-neutral-800 transition hover:border-neutral-900"
+                onClick={openAddJourney}
+                className="block w-full rounded-xl px-3 py-2 text-left text-sm font-medium text-[#171717] hover:bg-[#f6f1e8]"
               >
-                Copy
+                Add journey
+              </button>
+              <button
+                type="button"
+                disabled
+                className="block w-full rounded-xl px-3 py-2 text-left text-sm font-medium text-[#a0998e]"
+              >
+                Add lesson (later)
               </button>
             </div>
+          ) : null}
 
-            <pre className="mt-4 overflow-x-auto rounded-2xl bg-neutral-950 p-4 text-xs leading-6 text-neutral-100">
-              <code>{generatedCode}</code>
-            </pre>
-          </section>
+          {menuOpen === "edit" ? (
+            <div className="absolute right-0 top-14 z-20 min-w-[180px] rounded-2xl border border-[#e3dbcf] bg-white p-2 shadow-[0_14px_30px_rgba(0,0,0,0.10)]">
+              <button
+                type="button"
+                onClick={openEditJourney}
+                className="block w-full rounded-xl px-3 py-2 text-left text-sm font-medium text-[#171717] hover:bg-[#f6f1e8]"
+              >
+                Edit journey
+              </button>
+              <button
+                type="button"
+                disabled
+                className="block w-full rounded-xl px-3 py-2 text-left text-sm font-medium text-[#a0998e]"
+              >
+                Edit lesson (later)
+              </button>
+            </div>
+          ) : null}
         </div>
-      </div>
+      </section>
+
+      <section className="mt-6 space-y-4">
+        <Card className="bg-white">
+          <div className="space-y-4">
+            {mode === "edit" ? (
+              <label className="block">
+                <span className="mb-2 block text-sm font-medium text-[#3b3834]">
+                  Journey to edit
+                </span>
+                <select
+                  value={selectedEditId}
+                  onChange={(event) => {
+                    const nextId = event.target.value;
+                    setSelectedEditId(nextId);
+
+                    const journey = journeys.find((item) => item.id === nextId);
+                    if (!journey) return;
+
+                    setSelectedFile(null);
+                    setPreviewImageUrl(journey.artImage ?? "");
+                    setForm({
+                      journeyId: journey.id,
+                      surahName: journey.surahName,
+                      cardColor: journey.cardColor ?? "#7CC8D0",
+                      artImageUrl: journey.artImage ?? "",
+                    });
+                  }}
+                  className="w-full rounded-2xl border border-[#ddd4c8] bg-[#fcfbf8] px-4 py-3 text-sm text-[#171717]"
+                >
+                  {journeys.map((journey) => (
+                    <option key={journey.id} value={journey.id}>
+                      {journey.surahName.replace(/^Surah\s+/i, "")}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+
+            <label className="block">
+              <span className="mb-2 block text-sm font-medium text-[#3b3834]">
+                Full journey name
+              </span>
+              <input
+                value={form.surahName}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    surahName: event.target.value,
+                    journeyId:
+                      mode === "add"
+                        ? slugifyJourneyName(event.target.value)
+                        : current.journeyId,
+                  }))
+                }
+                placeholder="Surah Al-Mulk"
+                className="w-full rounded-2xl border border-[#ddd4c8] bg-[#fcfbf8] px-4 py-3 text-sm text-[#171717] outline-none placeholder:text-[#9b948a]"
+              />
+            </label>
+
+            <div>
+              <span className="mb-2 block text-sm font-medium text-[#3b3834]">
+                Left art image
+              </span>
+
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="rounded-2xl border border-[#ddd4c8] bg-[#fcfbf8] px-4 py-3 text-sm font-medium text-[#171717]"
+                >
+                  Upload image
+                </button>
+
+                {previewArt ? (
+                  <div className="h-14 w-10 overflow-hidden rounded-lg border border-[#ddd4c8] bg-white">
+                    <img
+                      src={previewArt}
+                      alt=""
+                      className="h-full w-full object-cover object-left"
+                    />
+                  </div>
+                ) : null}
+              </div>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={(event) =>
+                  handleImageUpload(event.target.files?.[0] ?? null)
+                }
+                className="hidden"
+              />
+            </div>
+
+            <div>
+              <span className="mb-2 block text-sm font-medium text-[#3b3834]">
+                Card color
+              </span>
+
+              <div className="flex items-center gap-3">
+                <input
+                  type="color"
+                  value={form.cardColor}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      cardColor: event.target.value,
+                    }))
+                  }
+                  className="h-12 w-16 cursor-pointer rounded-xl border border-[#ddd4c8] bg-transparent"
+                />
+
+                <div className="flex flex-wrap gap-2">
+                  {swatches.map((color) => (
+                    <button
+                      key={color}
+                      type="button"
+                      onClick={() =>
+                        setForm((current) => ({
+                          ...current,
+                          cardColor: color,
+                        }))
+                      }
+                      className="h-8 w-8 rounded-full border border-white shadow"
+                      style={{ backgroundColor: color }}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl bg-[#f8f5ef] p-4">
+              <p className="text-xs font-medium uppercase tracking-[0.18em] text-[#7b756d]">
+                Preview
+              </p>
+
+              <div className="mt-4 relative overflow-hidden rounded-[28px] shadow-[0_14px_30px_rgba(0,0,0,0.10)]">
+                <div
+                  className="flex min-h-[122px]"
+                  style={{ backgroundColor: form.cardColor }}
+                >
+                  <div className="relative w-[22%] shrink-0 overflow-hidden rounded-l-[28px]">
+                    {previewArt ? (
+                      <img
+                        src={previewArt}
+                        alt=""
+                        className="h-full w-full object-cover object-left"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center bg-black/5 text-[11px] font-medium text-[#8a847c]">
+                        Art
+                      </div>
+                    )}
+
+                    <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-r from-transparent via-white/55 to-white/90" />
+                  </div>
+
+                  <div className="relative flex flex-1 flex-col justify-center py-4 pl-4 pr-24">
+                    <div
+                      className={`absolute right-5 top-4 rounded-full px-3 py-1 text-sm font-semibold backdrop-blur-sm ${previewTheme.badgeClass}`}
+                    >
+                      50%
+                    </div>
+
+                    <div className="min-w-0">
+                      <h2
+                        className={`text-[1.75rem] font-semibold leading-tight tracking-tight ${previewTheme.titleClass}`}
+                      >
+                        {previewName.replace(/^Surah\s+/i, "")}
+                      </h2>
+
+                      <p
+                        className={`mt-1 truncate text-[13px] font-semibold leading-5 ${previewTheme.subtitleClass}`}
+                      >
+                        {previewSubtitle.title}
+                      </p>
+
+                      <p
+                        className={`mt-0.5 text-[12px] font-medium leading-5 ${previewTheme.metaClass}`}
+                      >
+                        {previewSubtitle.meta}
+                      </p>
+                    </div>
+
+                    <div className="mt-4">
+                      <div
+                        className={`h-2.5 w-full rounded-full ${previewTheme.progressTrackClass}`}
+                      >
+                        <div
+                          className={`h-2.5 w-1/2 rounded-full ${previewTheme.progressFillClass}`}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={saveJourney}
+              disabled={isSaving || isLoadingJourneys}
+              className="w-full rounded-2xl bg-[#1d5f63] px-4 py-4 text-base font-medium tracking-tight text-white shadow-[0_8px_20px_rgba(0,0,0,0.12)] transition active:scale-[0.985] disabled:cursor-not-allowed disabled:bg-neutral-300"
+            >
+              {isSaving
+                ? "Saving..."
+                : mode === "add"
+                ? "Save journey"
+                : "Save journey style"}
+            </button>
+
+            {savedMessage ? (
+              <p className="text-sm font-medium text-[#1d5f63]">{savedMessage}</p>
+            ) : null}
+
+            {errorMessage ? (
+              <p className="text-sm font-medium text-[#a23d35]">{errorMessage}</p>
+            ) : null}
+          </div>
+        </Card>
+
+        <Card className="bg-white">
+          <p className="text-xs font-medium uppercase tracking-[0.18em] text-[#7b756d]">
+            Current journeys
+          </p>
+
+          <div className="mt-4 space-y-3">
+            {journeys.map((journey) => (
+              <div
+                key={journey.id}
+                className="flex items-center justify-between rounded-2xl bg-[#fcfbf8] px-4 py-3"
+              >
+                <div>
+                  <p className="text-sm font-semibold text-[#171717]">
+                    {journey.surahName}
+                  </p>
+                  <p className="mt-1 text-xs text-[#7b756d]">
+                    {journey.segments.length} total sessions
+                  </p>
+                </div>
+
+                <div
+                  className="h-4 w-4 rounded-full border border-white shadow"
+                  style={{ backgroundColor: journey.cardColor ?? "#7CC8D0" }}
+                />
+              </div>
+            ))}
+          </div>
+        </Card>
+      </section>
     </main>
-  );
-}
-
-function Field({
-  label,
-  value,
-  onChange,
-  placeholder,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  placeholder?: string;
-}) {
-  return (
-    <div>
-      <label className="mb-2 block text-sm font-medium text-neutral-700">
-        {label}
-      </label>
-      <input
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="w-full rounded-xl border border-neutral-300 bg-white px-3 py-3 text-sm text-neutral-900 outline-none transition focus:border-neutral-900"
-      />
-    </div>
-  );
-}
-
-function TextareaField({
-  label,
-  value,
-  onChange,
-  rows,
-  placeholder,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  rows: number;
-  placeholder?: string;
-}) {
-  return (
-    <div>
-      <label className="mb-2 block text-sm font-medium text-neutral-700">
-        {label}
-      </label>
-      <textarea
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        rows={rows}
-        placeholder={placeholder}
-        className="w-full rounded-xl border border-neutral-300 bg-white px-3 py-3 text-sm leading-6 text-neutral-900 outline-none transition focus:border-neutral-900"
-      />
-    </div>
-  );
-}
-
-function PreviewBlock({
-  label,
-  value,
-  preserveWhitespace = false,
-}: {
-  label: string;
-  value: string;
-  preserveWhitespace?: boolean;
-}) {
-  return (
-    <div>
-      <p className="text-sm font-medium text-neutral-700">{label}</p>
-      <p
-        className={`mt-2 text-sm leading-6 text-neutral-800 ${
-          preserveWhitespace ? "whitespace-pre-line" : ""
-        }`}
-      >
-        {value}
-      </p>
-    </div>
   );
 }
