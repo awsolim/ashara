@@ -9,7 +9,6 @@ import Card from "@/components/ui/Card";
 import {
   clearJourneyProgress,
   getCompletedSegmentIds,
-  getCurrentSegment,
 } from "@/lib/data/journey";
 import {
   getJourneyCardTheme,
@@ -46,9 +45,14 @@ export default function HomePage() {
   }, [selectedJourney]);
 
   const currentSegment = useMemo(() => {
-    if (!selectedJourney) return null;
-    return getCurrentSegment(selectedJourney.id, completedSegmentIds);
-  }, [selectedJourney, completedSegmentIds]);
+  if (!selectedJourney) return null;
+
+  return (
+    selectedJourney.segments.find(
+      (segment) => !completedSegmentIds.includes(segment.id)
+    ) ?? null
+  );
+}, [selectedJourney, completedSegmentIds]);
 
   const progressPercent = useMemo(() => {
   if (!selectedJourney) return 0;

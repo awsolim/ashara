@@ -37,18 +37,18 @@ export default function JourneysPage() {
     }
 
     document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const journeyCards = useMemo(() => {
     return journeys.map((journey) => {
       const completedSegmentIds = getCompletedSegmentIds(journey.id);
-      const progressPercent = getJourneyProgressPercent(
-        journey.id,
-        completedSegmentIds
-      );
+      const totalSegments = journey.segments.length;
+
+const progressPercent =
+  totalSegments > 0
+    ? Math.round((completedSegmentIds.length / totalSegments) * 100)
+    : 0;
       const theme = getJourneyCardTheme(journey.cardColor ?? "#7CC8D0");
       const subtitle = getJourneySubtitle(journey, completedSegmentIds.length);
 
@@ -91,20 +91,21 @@ export default function JourneysPage() {
             </p>
           </div>
 
-          <div ref={menuRef} className="relative flex items-center gap-2">
+          <div ref={menuRef} className="relative flex items-center gap-1">
             <div className="relative">
               <button
                 type="button"
                 onClick={() =>
                   setOpenMenu((current) => (current === "add" ? null : "add"))
                 }
-                className="flex h-11 w-11 items-center justify-center rounded-full border border-[#d8d1c8] bg-white text-[24px] leading-none text-[#3f3a34] shadow-[0_8px_20px_rgba(0,0,0,0.05)]"
+                className="flex h-11 w-11 items-center justify-center rounded-full text-[24px] leading-none text-[#3f3a34] transition hover:bg-black/5 active:bg-black/10"
+                aria-label="Add"
               >
-                <span className="relative -top-[1px]">+</span>
+                <span className="relative -top-px">+</span>
               </button>
 
               {openMenu === "add" ? (
-                <div className="absolute right-0 top-[calc(100%+8px)] z-20 min-w-[180px] rounded-2xl border border-[#e3dbcf] bg-white p-2 shadow-[0_14px_30px_rgba(0,0,0,0.10)]">
+                <div className="absolute right-0 top-[calc(100%+10px)] z-20 min-w-47.5 rounded-2xl border border-[#e3dbcf] bg-white p-2 shadow-[0_14px_30px_rgba(0,0,0,0.10)]">
                   <Link
                     href="/builder?mode=add"
                     onClick={() => setOpenMenu(null)}
@@ -113,13 +114,13 @@ export default function JourneysPage() {
                     Add journey
                   </Link>
 
-                  <button
-                    type="button"
-                    disabled
-                    className="block w-full rounded-xl px-3 py-2 text-left text-sm font-medium text-[#a0998e]"
+                  <Link
+                    href="/builder?mode=add-lesson"
+                    onClick={() => setOpenMenu(null)}
+                    className="block rounded-xl px-3 py-2 text-sm font-medium text-[#171717] hover:bg-[#f6f1e8]"
                   >
-                    Add lesson (later)
-                  </button>
+                    Add lesson
+                  </Link>
                 </div>
               ) : null}
             </div>
@@ -130,13 +131,13 @@ export default function JourneysPage() {
                 onClick={() =>
                   setOpenMenu((current) => (current === "edit" ? null : "edit"))
                 }
-                className="rounded-full border border-[#d8d1c8] bg-white px-4 py-3 text-sm font-medium text-[#3f3a34] shadow-[0_8px_20px_rgba(0,0,0,0.05)]"
+                className="rounded-full px-4 py-3 text-sm font-medium text-[#3f3a34] transition hover:bg-black/5 active:bg-black/10"
               >
                 Edit
               </button>
 
               {openMenu === "edit" ? (
-                <div className="absolute right-0 top-[calc(100%+8px)] z-20 min-w-[180px] rounded-2xl border border-[#e3dbcf] bg-white p-2 shadow-[0_14px_30px_rgba(0,0,0,0.10)]">
+                <div className="absolute right-0 top-[calc(100%+10px)] z-20 min-w-47.5 rounded-2xl border border-[#e3dbcf] bg-white p-2 shadow-[0_14px_30px_rgba(0,0,0,0.10)]">
                   <button
                     type="button"
                     onClick={() => {
@@ -148,13 +149,13 @@ export default function JourneysPage() {
                     Edit journey
                   </button>
 
-                  <button
-                    type="button"
-                    disabled
-                    className="block w-full rounded-xl px-3 py-2 text-left text-sm font-medium text-[#a0998e]"
+                  <Link
+                    href="/builder?mode=edit-lesson"
+                    onClick={() => setOpenMenu(null)}
+                    className="block rounded-xl px-3 py-2 text-sm font-medium text-[#171717] hover:bg-[#f6f1e8]"
                   >
-                    Edit lesson (later)
-                  </button>
+                    Edit lesson
+                  </Link>
                 </div>
               ) : null}
             </div>
@@ -175,7 +176,7 @@ export default function JourneysPage() {
                   key={item}
                   className="overflow-hidden rounded-[28px] bg-white shadow-[0_14px_30px_rgba(0,0,0,0.06)]"
                 >
-                  <div className="flex min-h-[122px] animate-pulse">
+                  <div className="flex min-h-30.5 animate-pulse">
                     <div className="w-[22%] bg-[#e5e0d8]" />
                     <div className="flex flex-1 flex-col justify-center gap-3 px-4 py-4">
                       <div className="h-7 w-40 rounded-full bg-[#ebe5dc]" />
@@ -211,7 +212,7 @@ export default function JourneysPage() {
                     <div className="pointer-events-none absolute inset-0 bg-black/8" />
                   ) : null}
 
-                  <div className="flex min-h-[122px]">
+                  <div className="flex min-h-30.5">
                     <div className="relative w-[22%] shrink-0 overflow-hidden rounded-l-[28px]">
                       {journey.artImage ? (
                         <img
@@ -219,7 +220,9 @@ export default function JourneysPage() {
                           alt=""
                           className="h-full w-full object-cover"
                           style={{
-                            objectPosition: `${journey.artPositionX ?? 0}% center`,
+                            objectPosition: `${
+                              journey.artPositionX ?? 0
+                            }% center`,
                             transform: `scale(${journey.artScale ?? 1})`,
                           }}
                         />
@@ -227,7 +230,7 @@ export default function JourneysPage() {
                         <div className="h-full w-full bg-black/5" />
                       )}
 
-                      <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-r from-transparent via-white/55 to-white/90" />
+                      <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-linear-to-r from-transparent via-white/55 to-white/90" />
                     </div>
 
                     <div className="relative flex flex-1 flex-col justify-center py-4 pl-4 pr-24">
@@ -253,7 +256,12 @@ export default function JourneysPage() {
                         <p
                           className={`mt-0.5 text-[12px] font-medium leading-5 ${journey.theme.metaClass}`}
                         >
-                          {journey.subtitle.meta}
+                          {journey.segments.length > 0
+                            ? `Lesson ${Math.min(
+                                getCompletedSegmentIds(journey.id).length + 1,
+                                journey.segments.length
+                              )} of ${journey.segments.length}`
+                            : "No lessons yet"}
                         </p>
                       </div>
 

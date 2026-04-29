@@ -92,7 +92,7 @@ export async function getVerses(
 
   const url = `${baseUrl}/verses/by_chapter/${surahNumber}?translations=20&fields=text_uthmani,verse_key,verse_number&per_page=50`;
 
-  console.log("Quran API URL:", url);
+  //console.log("Quran API URL:", url);
 
   const res = await fetch(url, {
     headers: token
@@ -116,7 +116,7 @@ export async function getVerses(
 
   const data = await res.json();
 
-  console.log("RAW QF VERSES RESPONSE:", JSON.stringify(data, null, 2));
+  //console.log("RAW QF VERSES RESPONSE:", JSON.stringify(data, null, 2));
 
   return data.verses
     .filter(

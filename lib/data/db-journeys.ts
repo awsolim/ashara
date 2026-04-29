@@ -1,9 +1,17 @@
 import { supabase } from "@/lib/supabase";
-import type { Journey, Segment, Question } from "@/lib/data/types";
+import type {
+  Journey,
+  LessonStep,
+  LessonStepType,
+  LessonPhase,
+  Question,
+  Segment,
+} from "@/lib/data/types";
 
 type JourneyRow = {
   id: string;
   surah_name: string;
+  surah_number: number | null;
   surah_label: string | null;
   description: string | null;
   card_color: string | null;
@@ -41,6 +49,17 @@ type QuestionRow = {
   sort_order: number;
 };
 
+type LessonStepRow = {
+  id: string;
+  segment_id: string;
+  phase: LessonPhase;
+  step_type: LessonStepType;
+  title: string | null;
+  prompt: string | null;
+  content: Record<string, unknown> | null;
+  sort_order: number;
+};
+
 function mapQuestion(row: QuestionRow): Question {
   return {
     id: row.id,
@@ -52,7 +71,24 @@ function mapQuestion(row: QuestionRow): Question {
   };
 }
 
-function mapSegment(row: SegmentRow, questions: Question[]): Segment {
+function mapLessonStep(row: LessonStepRow): LessonStep {
+  return {
+    id: row.id,
+    segmentId: row.segment_id,
+    phase: row.phase,
+    stepType: row.step_type,
+    title: row.title ?? undefined,
+    prompt: row.prompt ?? undefined,
+    content: row.content ?? {},
+    sortOrder: row.sort_order,
+  };
+}
+
+function mapSegment(
+  row: SegmentRow,
+  questions: Question[],
+  lessonSteps: LessonStep[]
+): Segment {
   return {
     id: row.id,
     title: row.title,
@@ -66,6 +102,7 @@ function mapSegment(row: SegmentRow, questions: Question[]): Segment {
     reflectionPrompt: row.reflection_prompt,
     actionOptions: row.action_options ?? [],
     questions,
+    lessonSteps,
   };
 }
 
@@ -73,6 +110,7 @@ function mapJourney(row: JourneyRow, segments: Segment[]): Journey {
   return {
     id: row.id,
     surahName: row.surah_name,
+    surahNumber: row.surah_number ?? undefined,
     surahLabel: row.surah_label ?? undefined,
     description: row.description ?? undefined,
     cardColor: row.card_color ?? undefined,
@@ -120,7 +158,18 @@ async function fetchAssembledJourneys(): Promise<Journey[]> {
     throw questionsError;
   }
 
+  const { data: lessonStepsData, error: lessonStepsError } = await supabase
+    .from("lesson_steps")
+    .select("*")
+    .in("segment_id", segmentIds.length ? segmentIds : ["__none__"])
+    .order("sort_order", { ascending: true });
+
+  if (lessonStepsError) {
+    throw lessonStepsError;
+  }
+
   const questionRows = (questionsData ?? []) as QuestionRow[];
+  const lessonStepRows = (lessonStepsData ?? []) as LessonStepRow[];
 
   const questionsBySegment = new Map<string, Question[]>();
 
@@ -130,11 +179,20 @@ async function fetchAssembledJourneys(): Promise<Journey[]> {
     questionsBySegment.set(row.segment_id, list);
   }
 
+  const lessonStepsBySegment = new Map<string, LessonStep[]>();
+
+  for (const row of lessonStepRows) {
+    const list = lessonStepsBySegment.get(row.segment_id) ?? [];
+    list.push(mapLessonStep(row));
+    lessonStepsBySegment.set(row.segment_id, list);
+  }
+
   const segmentsByJourney = new Map<string, Segment[]>();
 
   for (const row of segmentRows) {
     const questions = questionsBySegment.get(row.id) ?? [];
-    const segment = mapSegment(row, questions);
+    const lessonSteps = lessonStepsBySegment.get(row.id) ?? [];
+    const segment = mapSegment(row, questions, lessonSteps);
     const list = segmentsByJourney.get(row.journey_id) ?? [];
     list.push(segment);
     segmentsByJourney.set(row.journey_id, list);

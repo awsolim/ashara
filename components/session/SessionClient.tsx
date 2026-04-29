@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import ProgressBar from "@/components/ui/ProgressBar";
-import type { Segment } from "@/lib/data/types";
+import type { LessonStep, Segment } from "@/lib/data/types";
 
 type Ayah = {
   number: number;
@@ -24,20 +24,143 @@ type SessionClientProps = {
   journeyId: string;
 };
 
+type TrueFalseStatement = {
+  text: string;
+  answer: boolean;
+  explanation?: string;
+};
+
+type ChoiceOption = {
+  text: string;
+  correct?: boolean;
+  feedback?: string;
+};
+
+const PHASE_LABELS: Record<string, string> = {
+  encounter: "Encounter",
+  explore: "Explore",
+  engage: "Engage",
+  enrich: "Enrich",
+  embody: "Embody",
+  execute: "Execute",
+};
+
 function getSurahNameArabic(surahNumber: number): string {
   const names = [
-    "الفاتحة","البقرة","آل عمران","النساء","المائدة","الأنعام","الأعراف","الأنفال","التوبة","يونس",
-    "هود","يوسف","الرعد","إبراهيم","الحجر","النحل","الإسراء","الكهف","مريم","طه",
-    "الأنبياء","الحج","المؤمنون","النور","الفرقان","الشعراء","النمل","القصص","العنكبوت","الروم",
-    "لقمان","السجدة","الأحزاب","سبأ","فاطر","يس","الصافات","ص","الزمر","غافر",
-    "فصلت","الشورى","الزخرف","الدخان","الجاثية","الأحقاف","محمد","الفتح","الحجرات","ق",
-    "الذاريات","الطور","النجم","القمر","الرحمن","الواقعة","الحديد","المجادلة","الحشر","الممتحنة",
-    "الصف","الجمعة","المنافقون","التغابن","الطلاق","التحريم","الملك","القلم","الحاقة","المعارج",
-    "نوح","الجن","المزمل","المدثر","القيامة","الإنسان","المرسلات","النبأ","النازعات","عبس",
-    "التكوير","الانفطار","المطففين","الانشقاق","البروج","الطارق","الأعلى","الغاشية","الفجر","البلد",
-    "الشمس","الليل","الضحى","الشرح","التين","العلق","القدر","البينة","الزلزلة","العاديات",
-    "القارعة","التكاثر","العصر","الهمزة","الفيل","قريش","الماعون","الكوثر","الكافرون","النصر",
-    "المسد","الإخلاص","الفلق","الناس"
+    "الفاتحة",
+    "البقرة",
+    "آل عمران",
+    "النساء",
+    "المائدة",
+    "الأنعام",
+    "الأعراف",
+    "الأنفال",
+    "التوبة",
+    "يونس",
+    "هود",
+    "يوسف",
+    "الرعد",
+    "إبراهيم",
+    "الحجر",
+    "النحل",
+    "الإسراء",
+    "الكهف",
+    "مريم",
+    "طه",
+    "الأنبياء",
+    "الحج",
+    "المؤمنون",
+    "النور",
+    "الفرقان",
+    "الشعراء",
+    "النمل",
+    "القصص",
+    "العنكبوت",
+    "الروم",
+    "لقمان",
+    "السجدة",
+    "الأحزاب",
+    "سبأ",
+    "فاطر",
+    "يس",
+    "الصافات",
+    "ص",
+    "الزمر",
+    "غافر",
+    "فصلت",
+    "الشورى",
+    "الزخرف",
+    "الدخان",
+    "الجاثية",
+    "الأحقاف",
+    "محمد",
+    "الفتح",
+    "الحجرات",
+    "ق",
+    "الذاريات",
+    "الطور",
+    "النجم",
+    "القمر",
+    "الرحمن",
+    "الواقعة",
+    "الحديد",
+    "المجادلة",
+    "الحشر",
+    "الممتحنة",
+    "الصف",
+    "الجمعة",
+    "المنافقون",
+    "التغابن",
+    "الطلاق",
+    "التحريم",
+    "الملك",
+    "القلم",
+    "الحاقة",
+    "المعارج",
+    "نوح",
+    "الجن",
+    "المزمل",
+    "المدثر",
+    "القيامة",
+    "الإنسان",
+    "المرسلات",
+    "النبأ",
+    "النازعات",
+    "عبس",
+    "التكوير",
+    "الانفطار",
+    "المطففين",
+    "الانشقاق",
+    "البروج",
+    "الطارق",
+    "الأعلى",
+    "الغاشية",
+    "الفجر",
+    "البلد",
+    "الشمس",
+    "الليل",
+    "الضحى",
+    "الشرح",
+    "التين",
+    "العلق",
+    "القدر",
+    "البينة",
+    "الزلزلة",
+    "العاديات",
+    "القارعة",
+    "التكاثر",
+    "العصر",
+    "الهمزة",
+    "الفيل",
+    "قريش",
+    "الماعون",
+    "الكوثر",
+    "الكافرون",
+    "النصر",
+    "المسد",
+    "الإخلاص",
+    "الفلق",
+    "الناس",
   ];
 
   return names[surahNumber - 1] ?? "";
@@ -45,6 +168,76 @@ function getSurahNameArabic(surahNumber: number): string {
 
 function toArabicNumber(value: number): string {
   return new Intl.NumberFormat("ar-EG", { useGrouping: false }).format(value);
+}
+
+function getString(content: Record<string, unknown>, key: string): string {
+  const value = content[key];
+  return typeof value === "string" ? value : "";
+}
+
+function getStringArray(content: Record<string, unknown>, key: string): string[] {
+  const value = content[key];
+
+  if (!Array.isArray(value)) return [];
+
+  return value.filter((item): item is string => typeof item === "string");
+}
+
+function getTrueFalseStatements(
+  content: Record<string, unknown>
+): TrueFalseStatement[] {
+  const value = content.statements;
+
+  if (!Array.isArray(value)) return [];
+
+  const statements: TrueFalseStatement[] = [];
+
+  for (const item of value) {
+    if (!item || typeof item !== "object") continue;
+
+    const row = item as Record<string, unknown>;
+
+    if (typeof row.text !== "string" || typeof row.answer !== "boolean") {
+      continue;
+    }
+
+    statements.push({
+      text: row.text,
+      answer: row.answer,
+      explanation:
+        typeof row.explanation === "string" ? row.explanation : undefined,
+    });
+  }
+
+  return statements;
+}
+
+function getChoiceOptions(content: Record<string, unknown>): ChoiceOption[] {
+  const value = content.options;
+
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((item) => {
+      if (typeof item === "string") {
+        return {
+          text: item,
+        };
+      }
+
+      if (!item || typeof item !== "object") return null;
+
+      const row = item as Record<string, unknown>;
+
+      if (typeof row.text !== "string") return null;
+
+      return {
+        text: row.text,
+        correct: typeof row.correct === "boolean" ? row.correct : undefined,
+        feedback: typeof row.feedback === "string" ? row.feedback : undefined,
+      };
+    })
+    .filter((item): item is ChoiceOption => item !== null);
 }
 
 export default function SessionClient({
@@ -65,29 +258,49 @@ export default function SessionClient({
   const [openTafsir, setOpenTafsir] = useState<Set<number>>(() => new Set());
   const [continueMessage, setContinueMessage] = useState("");
 
+  const [trueFalseAnswers, setTrueFalseAnswers] = useState<
+    Record<string, Record<number, boolean>>
+  >({});
+  const [scenarioSelections, setScenarioSelections] = useState<
+    Record<string, string>
+  >({});
+  const [anchorSelections, setAnchorSelections] = useState<
+    Record<string, string>
+  >({});
+  const [actionSelections, setActionSelections] = useState<
+    Record<string, string>
+  >({});
+
   const question = segment?.questions?.[0] ?? null;
   const ayahs = segment.ayahs ?? [];
+  const lessonSteps = segment.lessonSteps ?? [];
+  const hasLessonSteps = lessonSteps.length > 0;
 
-  const steps = useMemo(
+  const fallbackSteps = useMemo(
     () => [
-      "recitation",
-      "study",
       "understanding",
       "focus",
       "interaction",
       "reflection",
       "action",
-      "complete",
     ],
     []
   );
 
+  const totalSteps = 2 + (hasLessonSteps ? lessonSteps.length : fallbackSteps.length) + 1;
+  const completeStepIndex = totalSteps - 1;
+
   const progressPercent = useMemo(() => {
-    return Math.round(((step + 1) / steps.length) * 100);
-  }, [step, steps.length]);
+    return Math.round(((step + 1) / totalSteps) * 100);
+  }, [step, totalSteps]);
 
   const allTranslationsOpened =
     ayahs.length > 0 && openedTranslations.size >= ayahs.length;
+
+  const currentLessonStep =
+    hasLessonSteps && step >= 2 && step < completeStepIndex
+      ? lessonSteps[step - 2]
+      : null;
 
   function toggleTranslation(ayahNumber: number) {
     setContinueMessage("");
@@ -125,22 +338,62 @@ export default function SessionClient({
     });
   }
 
-  function next() {
-    if (step === 1 && !allTranslationsOpened) {
-      setContinueMessage("Open each translation once before continuing.");
-      return;
+  function stepIsBlocked() {
+
+    if (!currentLessonStep) return false;
+
+    if (currentLessonStep.stepType === "true_false_chain") {
+      const statements = getTrueFalseStatements(currentLessonStep.content);
+      const answers = trueFalseAnswers[currentLessonStep.id] ?? {};
+
+      if (statements.length > 0 && Object.keys(answers).length < statements.length) {
+        setContinueMessage("Answer each statement before continuing.");
+        return true;
+      }
     }
+
+    if (currentLessonStep.stepType === "scenario_choice") {
+      if (!scenarioSelections[currentLessonStep.id]) {
+        setContinueMessage("Choose an answer before continuing.");
+        return true;
+      }
+    }
+
+    if (currentLessonStep.stepType === "anchor_choice") {
+      if (!anchorSelections[currentLessonStep.id]) {
+        setContinueMessage("Choose one anchor before continuing.");
+        return true;
+      }
+    }
+
+    if (currentLessonStep.stepType === "action_choice") {
+      if (!actionSelections[currentLessonStep.id]) {
+        setContinueMessage("Choose one action before continuing.");
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  function next() {
+    if (stepIsBlocked()) return;
 
     setContinueMessage("");
 
-    if (step < steps.length - 1) {
+    if (step < totalSteps - 1) {
       setStep((current) => current + 1);
     }
   }
 
   function finish() {
-    if (selectedAction) {
-      localStorage.setItem("ashara_pending_action", selectedAction);
+    const chosenDynamicAction = Object.values(actionSelections)[0];
+
+    if (selectedAction || chosenDynamicAction) {
+      localStorage.setItem(
+        "ashara_pending_action",
+        selectedAction ?? chosenDynamicAction
+      );
       localStorage.setItem("ashara_last_session_title", `${segment.title}`);
     }
 
@@ -198,11 +451,9 @@ export default function SessionClient({
             : "border-[#e6e0d7] bg-white hover:border-[#cfc7bc]"
         }`}
       >
-        <div className="flex items-center justify-between gap-4">
-          <span className="text-[15px] font-medium text-[#171717]">
-            {label}
-          </span>
-        </div>
+        <span className="text-[15px] font-medium leading-6 text-[#171717]">
+          {label}
+        </span>
       </button>
     );
   }
@@ -227,6 +478,288 @@ export default function SessionClient({
 
         <div className="mt-5">{children}</div>
       </section>
+    );
+  }
+
+  function renderLessonStep(lessonStep: LessonStep) {
+    const content = lessonStep.content;
+    const eyebrow = PHASE_LABELS[lessonStep.phase] ?? lessonStep.phase;
+    const title = lessonStep.title ?? lessonStep.prompt ?? eyebrow;
+
+    if (lessonStep.stepType === "key_word") {
+      return (
+        <StepShell eyebrow={eyebrow} title={title}>
+          <Card className="bg-white">
+            <p
+              dir="rtl"
+              lang="ar"
+              className="text-right font-serif text-[2rem] leading-12 text-[#171717]"
+            >
+              {getString(content, "word")}
+            </p>
+            <p className="mt-4 text-lg font-semibold text-[#171717]">
+              {getString(content, "meaning")}
+            </p>
+            <p className="mt-3 text-[15px] leading-7 text-[#4d4942]">
+              {getString(content, "note")}
+            </p>
+          </Card>
+        </StepShell>
+      );
+    }
+
+    if (lessonStep.stepType === "divine_name") {
+      return (
+        <StepShell eyebrow={eyebrow} title={title}>
+          <Card className="bg-[#fbf7ed]">
+            <p
+              dir="rtl"
+              lang="ar"
+              className="text-center font-serif text-[2.1rem] leading-12 text-[#171717]"
+            >
+              {getString(content, "name")}
+            </p>
+            <p className="mt-5 text-lg font-semibold text-[#171717]">
+              {getString(content, "meaning")}
+            </p>
+            <p className="mt-3 text-[15px] leading-7 text-[#4d4942]">
+              {getString(content, "lesson")}
+            </p>
+          </Card>
+        </StepShell>
+      );
+    }
+
+    if (lessonStep.stepType === "true_false_chain") {
+      const statements = getTrueFalseStatements(content);
+      const answers = trueFalseAnswers[lessonStep.id] ?? {};
+
+      return (
+        <StepShell eyebrow={eyebrow} title={title}>
+          <div className="space-y-4">
+            {statements.map((statement, index) => {
+              const selected = answers[index];
+
+              return (
+                <Card key={`${statement.text}-${index}`} className="bg-white">
+                  <p className="text-[15px] font-medium leading-7 text-[#171717]">
+                    {statement.text}
+                  </p>
+
+                  <div className="mt-4 grid grid-cols-2 gap-3">
+                    {[true, false].map((answer) => (
+                      <button
+                        key={String(answer)}
+                        type="button"
+                        onClick={() =>
+                          setTrueFalseAnswers((current) => ({
+                            ...current,
+                            [lessonStep.id]: {
+                              ...(current[lessonStep.id] ?? {}),
+                              [index]: answer,
+                            },
+                          }))
+                        }
+                        className={`rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
+                          selected === answer
+                            ? "border-[#1f5c4c] bg-[#edf5f1] text-[#1f5c4c]"
+                            : "border-[#e6e0d7] bg-white text-[#5f5a53]"
+                        }`}
+                      >
+                        {answer ? "True" : "False"}
+                      </button>
+                    ))}
+                  </div>
+
+                  {typeof selected === "boolean" ? (
+                    <p className="mt-4 rounded-2xl bg-[#fbfaf7] px-4 py-3 text-sm leading-6 text-[#4d4942]">
+                      {selected === statement.answer
+                        ? statement.explanation ?? "Correct."
+                        : statement.explanation ??
+                          `Not quite. The correct answer is ${
+                            statement.answer ? "True" : "False"
+                          }.`}
+                    </p>
+                  ) : null}
+                </Card>
+              );
+            })}
+          </div>
+        </StepShell>
+      );
+    }
+
+    if (lessonStep.stepType === "scenario_choice") {
+      const options = getChoiceOptions(content);
+      const selected = scenarioSelections[lessonStep.id];
+      const selectedOption = options.find((option) => option.text === selected);
+
+      return (
+        <StepShell
+          eyebrow={eyebrow}
+          title={lessonStep.prompt ?? title}
+        >
+          <div className="space-y-3">
+            {options.map((option) => (
+              <Option
+                key={option.text}
+                label={option.text}
+                selected={selected === option.text}
+                onClick={() =>
+                  setScenarioSelections((current) => ({
+                    ...current,
+                    [lessonStep.id]: option.text,
+                  }))
+                }
+              />
+            ))}
+          </div>
+
+          {selectedOption ? (
+            <Card className="mt-4 bg-[#fcfbf8]">
+              <p className="text-sm font-medium uppercase tracking-[0.16em] text-[#7b756d]">
+                Response
+              </p>
+              <p className="mt-3 text-[15px] leading-7 text-[#2d2b28]">
+                {selectedOption.feedback ??
+                  (selectedOption.correct
+                    ? "That answer fits the meaning of these ayat."
+                    : "Look again at what the ayat are teaching.")}
+              </p>
+            </Card>
+          ) : null}
+        </StepShell>
+      );
+    }
+
+    if (lessonStep.stepType === "ayah_match") {
+      const prompt = lessonStep.prompt ?? title;
+      const correctAyah = getString(content, "correctAyah");
+
+      return (
+        <StepShell eyebrow={eyebrow} title={prompt}>
+          <div className="space-y-3">
+            {ayahs.map((ayah) => (
+              <Option
+                key={ayah.number}
+                label={`Ayah ${ayah.number}`}
+                selected={selectedAnswer === String(ayah.number)}
+                onClick={() => setSelectedAnswer(String(ayah.number))}
+              />
+            ))}
+          </div>
+
+          {selectedAnswer ? (
+            <Card className="mt-4 bg-[#fcfbf8]">
+              <p className="text-[15px] leading-7 text-[#2d2b28]">
+                {selectedAnswer === correctAyah
+                  ? getString(content, "success") || "Correct."
+                  : getString(content, "feedback") ||
+                    `Look for ayah ${correctAyah}.`}
+              </p>
+            </Card>
+          ) : null}
+        </StepShell>
+      );
+    }
+
+    if (lessonStep.stepType === "insight") {
+      return (
+        <StepShell eyebrow={eyebrow} title={title}>
+          <Card className="bg-[#f6f1e8]">
+            <p className="text-[15px] leading-7 text-[#2d2b28]">
+              {getString(content, "body")}
+            </p>
+          </Card>
+        </StepShell>
+      );
+    }
+
+    if (lessonStep.stepType === "role_model") {
+      return (
+        <StepShell eyebrow={eyebrow} title={title}>
+          <Card className="bg-white">
+            <p className="text-sm font-medium uppercase tracking-[0.16em] text-[#7b756d]">
+              {getString(content, "person")}
+            </p>
+            <p className="mt-3 text-[15px] leading-7 text-[#2d2b28]">
+              {getString(content, "body")}
+            </p>
+          </Card>
+        </StepShell>
+      );
+    }
+
+    if (lessonStep.stepType === "anchor_choice") {
+      const options = getChoiceOptions(content);
+      const selected = anchorSelections[lessonStep.id];
+
+      return (
+        <StepShell eyebrow={eyebrow} title={title}>
+          <div className="space-y-3">
+            {options.map((option) => (
+              <Option
+                key={option.text}
+                label={option.text}
+                selected={selected === option.text}
+                onClick={() =>
+                  setAnchorSelections((current) => ({
+                    ...current,
+                    [lessonStep.id]: option.text,
+                  }))
+                }
+              />
+            ))}
+          </div>
+        </StepShell>
+      );
+    }
+
+    if (lessonStep.stepType === "reflection_prompt") {
+      return (
+        <StepShell eyebrow={eyebrow} title={title}>
+          <Card className="bg-white">
+            <p className="text-[15px] leading-7 text-[#2d2b28]">
+              {lessonStep.prompt || getString(content, "prompt")}
+            </p>
+          </Card>
+        </StepShell>
+      );
+    }
+
+    if (lessonStep.stepType === "action_choice") {
+      const options = getChoiceOptions(content);
+      const selected = actionSelections[lessonStep.id];
+
+      return (
+        <StepShell eyebrow={eyebrow} title={title}>
+          <div className="space-y-3">
+            {options.map((option) => (
+              <Option
+                key={option.text}
+                label={option.text}
+                selected={selected === option.text}
+                onClick={() =>
+                  setActionSelections((current) => ({
+                    ...current,
+                    [lessonStep.id]: option.text,
+                  }))
+                }
+              />
+            ))}
+          </div>
+        </StepShell>
+      );
+    }
+
+    return (
+      <StepShell eyebrow={eyebrow} title={title}>
+        <Card>
+          <p className="text-[15px] leading-7 text-[#2d2b28]">
+            This step type is not supported yet.
+          </p>
+        </Card>
+      </StepShell>
     );
   }
 
@@ -260,7 +793,7 @@ export default function SessionClient({
                 Lesson progress
               </p>
               <p className="mt-1 text-sm font-medium text-[#171717]">
-                Step {step + 1} of {steps.length}
+                Step {step + 1} of {totalSteps}
               </p>
             </div>
           </div>
@@ -271,43 +804,37 @@ export default function SessionClient({
         </section>
 
         {step === 0 ? (
-          <StepShell eyebrow="Recitation" title={segment.title}>
+          <StepShell eyebrow="Encounter" title={segment.title}>
             <Card className="overflow-hidden border-[#e8ddc9] bg-[#fbf7ed]">
               <div className="rounded-[1.75rem] border border-[#e4d6bd] bg-[#fffaf0] px-4 py-5 shadow-sm">
-                <div className="mb-6 border border-[#8d7650] bg-[#fbf3df] px-3 py-2 text-center shadow-sm">
-  <div className="grid grid-cols-[42px_1fr_42px] items-center border border-[#b9a174] px-2 py-2">
-    <div className="mx-auto h-7 w-7 rounded-full border border-[#8d7650]" />
-
-    <div className="border-x border-[#c7b185] px-3 text-center">
+  <div className="mb-3 border border-[#8d7650] bg-[#fbf3df] px-3 py-2 text-center shadow-sm">
+    <div className="border border-[#b9a174] px-4 py-4 text-center">
       <p
         dir="rtl"
         lang="ar"
-        className="text-center font-serif text-[1.55rem] leading-none text-[#2a2115]"
+        className="text-center font-serif text-[2rem] leading-none text-[#2a2115]"
       >
-      سُورَةُ{" "}
-{typeof segment.surahNumber === "number"
-  ? getSurahNameArabic(segment.surahNumber)
-  : ""}
-      </p>
-
-      <p className="mt-2 text-center text-[0.65rem] font-medium uppercase tracking-[0.18em] text-[#8a7654]">
-        Ayah {segment.ayahStart}–{segment.ayahEnd}
+        سُورَةُ{" "}
+        {typeof segment.surahNumber === "number"
+          ? getSurahNameArabic(segment.surahNumber)
+          : ""}
       </p>
     </div>
-
-    <div className="mx-auto h-7 w-7 rounded-full border border-[#8d7650]" />
   </div>
-</div>
 
-{segment.ayahStart === 1 ? (
-  <p
-    dir="rtl"
-    lang="ar"
-    className="mb-5 text-center font-serif text-[1.7rem] leading-[2.8rem] text-[#2a2115]"
-  >
-    بِسْمِ اللَّهِ الرَّحْمَـٰنِ الرَّحِيمِ
+  <p className="mb-6 text-center text-xs font-medium uppercase tracking-widest text-[#8a7654]">
+    Ayah {segment.ayahStart}–{segment.ayahEnd}
   </p>
-) : null}
+
+                {segment.ayahStart === 1 ? (
+                  <p
+                    dir="rtl"
+                    lang="ar"
+                    className="mb-5 text-center font-serif text-[1.7rem] leading-[2.8rem] text-[#2a2115]"
+                  >
+                    بِسْمِ اللَّهِ الرَّحْمَـٰنِ الرَّحِيمِ
+                  </p>
+                ) : null}
 
                 <p
                   dir="rtl"
@@ -317,10 +844,12 @@ export default function SessionClient({
                   {ayahs.length > 0
                     ? ayahs.map((ayah) => (
                         <span key={ayah.number}>
-                          {ayah.arabic}{" "}
-                          <span className="mx-1 inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#c7ad7a] text-[1rem] leading-none text-[#7b5f2b]">
-                            {toArabicNumber(ayah.number)}
-                          </span>{" "}
+                          {ayah.arabic}
+{"\u00A0\u00A0"}
+<span className="inline-flex h-7 w-7 -translate-y-1 items-center justify-center rounded-full border border-[#c7b185] bg-gradient-to-b from-[#fffaf0] to-[#f3e7cf] align-middle text-[0.7rem] font-semibold leading-none text-[#5c4a2f] shadow-[inset_0_1px_2px_rgba(0,0,0,0.08)]">
+  {ayah.number}
+</span>
+{"\u00A0\u00A0"}
                         </span>
                       ))
                     : segment.arabic || "Arabic text will appear here."}
@@ -331,7 +860,7 @@ export default function SessionClient({
         ) : null}
 
         {step === 1 ? (
-          <StepShell eyebrow="Study" title="Read each ayah with meaning">
+          <StepShell eyebrow="Explore" title="Read each ayah with meaning">
             <div className="space-y-4">
               {ayahs.map((ayah) => {
                 const translationIsOpen = openTranslations.has(ayah.number);
@@ -344,17 +873,60 @@ export default function SessionClient({
                         Ayah {ayah.number}
                       </p>
 
-                      <div className="flex items-center gap-2 text-sm text-[#7b756d]">
-                        <button type="button" className="rounded-full px-2 py-1">
-                          ◇
-                        </button>
-                        <button type="button" className="rounded-full px-2 py-1">
-                          Note
-                        </button>
-                        <button type="button" className="rounded-full px-2 py-1">
-                          Play
-                        </button>
-                      </div>
+                      <div className="flex items-center gap-1 text-[#7b756d]">
+  <button
+    type="button"
+    aria-label="Bookmark ayah"
+    className="flex h-9 w-9 items-center justify-center rounded-full transition hover:bg-black/5 active:bg-black/10"
+  >
+    <svg
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M6 4.75A1.75 1.75 0 0 1 7.75 3h8.5A1.75 1.75 0 0 1 18 4.75V21l-6-3.5L6 21V4.75Z" />
+    </svg>
+  </button>
+
+  <button
+    type="button"
+    aria-label="Add note"
+    className="flex h-9 w-9 items-center justify-center rounded-full transition hover:bg-black/5 active:bg-black/10"
+  >
+    <svg
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M5 4.75A1.75 1.75 0 0 1 6.75 3h10.5A1.75 1.75 0 0 1 19 4.75v14.5A1.75 1.75 0 0 1 17.25 21H6.75A1.75 1.75 0 0 1 5 19.25V4.75Z" />
+      <path d="M8 8h8" />
+      <path d="M8 12h8" />
+      <path d="M8 16h5" />
+    </svg>
+  </button>
+
+  <button
+    type="button"
+    aria-label="Play ayah audio"
+    className="flex h-9 w-9 items-center justify-center rounded-full transition hover:bg-black/5 active:bg-black/10"
+  >
+    <svg
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      fill="currentColor"
+    >
+      <path d="M8 5.75c0-.82.9-1.31 1.58-.86l8.2 5.47a1.03 1.03 0 0 1 0 1.72l-8.2 5.47A1.03 1.03 0 0 1 8 16.69V5.75Z" />
+    </svg>
+  </button>
+</div>
                     </div>
 
                     <p
@@ -417,8 +989,10 @@ export default function SessionClient({
           </StepShell>
         ) : null}
 
-        {step === 2 ? (
-          <StepShell eyebrow="Understanding" title="What these ayat are showing">
+        {currentLessonStep ? renderLessonStep(currentLessonStep) : null}
+
+        {!hasLessonSteps && step === 2 ? (
+          <StepShell eyebrow="Enrich" title="What these ayat are showing">
             <div className="space-y-3">
               {segment.insights.map((insight, index) => (
                 <Card key={insight} className="bg-white">
@@ -436,8 +1010,8 @@ export default function SessionClient({
           </StepShell>
         ) : null}
 
-        {step === 3 ? (
-          <StepShell eyebrow="Focus" title="Carry one central takeaway">
+        {!hasLessonSteps && step === 3 ? (
+          <StepShell eyebrow="Embody" title="Carry one central takeaway">
             <Card className="bg-[#f6f1e8]">
               <p className="text-lg font-medium leading-8 text-[#171717]">
                 {segment.focusAnchor}
@@ -452,9 +1026,9 @@ export default function SessionClient({
           </StepShell>
         ) : null}
 
-        {step === 4 ? (
+        {!hasLessonSteps && step === 4 ? (
           question ? (
-            <StepShell eyebrow="Apply" title={question.prompt}>
+            <StepShell eyebrow="Engage" title={question.prompt}>
               <div className="space-y-3">
                 {question.options.map((option) => (
                   <Option
@@ -484,7 +1058,7 @@ export default function SessionClient({
               ) : null}
             </StepShell>
           ) : (
-            <StepShell eyebrow="Apply" title="No question available">
+            <StepShell eyebrow="Engage" title="No question available">
               <Card>
                 <p className="text-[15px] leading-7 text-[#2d2b28]">
                   This segment does not currently have an application question.
@@ -494,8 +1068,8 @@ export default function SessionClient({
           )
         ) : null}
 
-        {step === 5 ? (
-          <StepShell eyebrow="Reflect" title="Bring it into your life">
+        {!hasLessonSteps && step === 5 ? (
+          <StepShell eyebrow="Embody" title="Bring it into your life">
             <Card className="bg-white">
               <p className="text-[15px] leading-7 text-[#2d2b28]">
                 {segment.reflectionPrompt}
@@ -504,8 +1078,8 @@ export default function SessionClient({
           </StepShell>
         ) : null}
 
-        {step === 6 ? (
-          <StepShell eyebrow="Action" title="Choose one action for today">
+        {!hasLessonSteps && step === 6 ? (
+          <StepShell eyebrow="Execute" title="Choose one action for today">
             <div className="space-y-3">
               {segment.actionOptions.map((action) => (
                 <Option
@@ -519,7 +1093,7 @@ export default function SessionClient({
           </StepShell>
         ) : null}
 
-        {step === 7 ? (
+        {step === completeStepIndex ? (
           <StepShell eyebrow="Complete" title="Carry this with you today">
             <Card className="bg-[#f6f1e8]">
               <p className="text-[15px] leading-7 text-[#2d2b28]">
@@ -527,28 +1101,35 @@ export default function SessionClient({
                 through on what you chose?
               </p>
 
-              {selectedAction ? (
+              {(selectedAction || Object.values(actionSelections)[0]) ? (
                 <div className="mt-5 rounded-2xl bg-white px-4 py-4">
                   <p className="text-sm font-medium uppercase tracking-[0.16em] text-[#7b756d]">
                     Chosen action
                   </p>
                   <p className="mt-2 text-[15px] leading-7 text-[#171717]">
-                    {selectedAction}
+                    {selectedAction || Object.values(actionSelections)[0]}
                   </p>
                 </div>
               ) : null}
             </Card>
           </StepShell>
         ) : null}
+
+        {continueMessage && step !== 1 ? (
+          <p className="mt-5 rounded-2xl bg-[#f6f1e8] px-4 py-3 text-sm text-[#6b4f24]">
+            {continueMessage}
+          </p>
+        ) : null}
       </div>
 
       <div className="pt-6">
-        {step < steps.length - 1 ? (
+        {step < completeStepIndex ? (
           <Button
             onClick={next}
             disabled={
-              (step === 4 && !!question && !selectedAnswer) ||
-              (step === 6 && !selectedAction)
+              !hasLessonSteps &&
+              ((step === 4 && !!question && !selectedAnswer) ||
+                (step === 6 && !selectedAction))
             }
           >
             Continue
