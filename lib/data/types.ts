@@ -10,6 +10,7 @@ export type Question = {
 export type Segment = {
   id: string;
   title: string;
+  surahNumber?: number;
   ayahStart: number;
   ayahEnd: number;
   arabic?: string;

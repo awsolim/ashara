@@ -17,6 +17,7 @@ type JourneyRow = {
 type SegmentRow = {
   id: string;
   journey_id: string;
+  surah_number: number | null;
   title: string;
   ayah_start: number;
   ayah_end: number;
@@ -55,6 +56,7 @@ function mapSegment(row: SegmentRow, questions: Question[]): Segment {
   return {
     id: row.id,
     title: row.title,
+    surahNumber: row.surah_number ?? undefined,
     ayahStart: row.ayah_start,
     ayahEnd: row.ayah_end,
     arabic: row.arabic ?? undefined,

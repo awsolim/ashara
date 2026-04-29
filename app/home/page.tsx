@@ -10,7 +10,6 @@ import {
   clearJourneyProgress,
   getCompletedSegmentIds,
   getCurrentSegment,
-  getJourneyProgressPercent,
 } from "@/lib/data/journey";
 import {
   getJourneyCardTheme,
@@ -52,9 +51,18 @@ export default function HomePage() {
   }, [selectedJourney, completedSegmentIds]);
 
   const progressPercent = useMemo(() => {
-    if (!selectedJourney) return 0;
-    return getJourneyProgressPercent(selectedJourney.id, completedSegmentIds);
-  }, [selectedJourney, completedSegmentIds]);
+  if (!selectedJourney) return 0;
+
+  const totalSegments = selectedJourney.segments.length;
+
+  if (totalSegments === 0) return 0;
+
+  const completedCount = selectedJourney.segments.filter((segment) =>
+    completedSegmentIds.includes(segment.id)
+  ).length;
+
+  return Math.round((completedCount / totalSegments) * 100);
+}, [selectedJourney, completedSegmentIds]);
 
   const theme = useMemo(() => {
     return getJourneyCardTheme(selectedJourney?.cardColor ?? "#7CC8D0");
@@ -69,6 +77,8 @@ export default function HomePage() {
   }, [selectedJourney, completedSegmentIds]);
 
   const hasPendingCheckIn = pendingAction.trim().length > 0;
+
+  
 
   function submitCheckIn() {
     if (!checkInStatus) return;
@@ -91,6 +101,13 @@ export default function HomePage() {
     setSavedStatus("");
     setCheckInStatus("");
   }
+
+  const isComplete =
+  selectedJourney &&
+  selectedJourney.segments.length > 0 &&
+  selectedJourney.segments.every((segment) =>
+    completedSegmentIds.includes(segment.id)
+  );
 
   const isJourneyComplete =
     !!selectedJourney &&
@@ -325,30 +342,32 @@ export default function HomePage() {
             ) : null}
 
             <div className="mt-6 space-y-3">
-              {isJourneyComplete ? (
-                <Button disabled>All lessons completed</Button>
-              ) : currentSegment ? (
-                <Link href={`/session/${currentSegment.id}`} className="block">
+  {currentSegment ? (
+    isComplete ? (
+      <Button disabled>Completed</Button>
+    ) : (
+      <Link href={`/session/${currentSegment.id}`} className="block">
   <button
-    className="w-full rounded-2xl px-4 py-4 text-base font-medium tracking-tight text-white shadow-[0_8px_20px_rgba(0,0,0,0.12)] transition active:scale-[0.985]"
-    style={{ backgroundColor: selectedJourney?.cardColor ?? "#1d5f63" }}
+    className="block w-full rounded-2xl px-4 py-4 text-base font-semibold text-white"
+    style={{ backgroundColor: "#1d5f63" }}
   >
     Continue lesson
   </button>
 </Link>
-              ) : (
-                <Button disabled>No lessons yet</Button>
-              )}
+    )
+  ) : (
+    <Button disabled>No lessons yet</Button>
+  )}
 
-              <button
+  <button
   type="button"
   onClick={resetCurrentJourneyProgress}
   className="w-full rounded-2xl px-4 py-4 text-base font-medium tracking-tight text-white shadow-[0_8px_20px_rgba(0,0,0,0.12)] transition active:scale-[0.985]"
-  style={{ backgroundColor: selectedJourney?.cardColor ?? "#1d5f63" }}
+  style={{ backgroundColor: "#1d5f63" }}
 >
   Reset progress
 </button>
-            </div>
+</div>
           </Card>
         </section>
 
