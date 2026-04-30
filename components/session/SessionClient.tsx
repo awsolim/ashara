@@ -11,6 +11,8 @@ type Ayah = {
   number: number;
   arabic: string;
   translation: string;
+  tafsir: string;
+  audioUrl: string;
 };
 
 type SessionSegment = Segment & {
@@ -270,6 +272,9 @@ export default function SessionClient({
   const [actionSelections, setActionSelections] = useState<
     Record<string, string>
   >({});
+
+  const [playingAyah, setPlayingAyah] = useState<number | null>(null);
+const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
 
   const question = segment?.questions?.[0] ?? null;
   const ayahs = segment.ayahs ?? [];
@@ -846,7 +851,7 @@ export default function SessionClient({
                         <span key={ayah.number}>
                           {ayah.arabic}
 {"\u00A0\u00A0"}
-<span className="inline-flex h-7 w-7 -translate-y-1 items-center justify-center rounded-full border border-[#c7b185] bg-gradient-to-b from-[#fffaf0] to-[#f3e7cf] align-middle text-[0.7rem] font-semibold leading-none text-[#5c4a2f] shadow-[inset_0_1px_2px_rgba(0,0,0,0.08)]">
+<span className="inline-flex h-7 w-7 -translate-y-1 items-center justify-center rounded-full border border-[#c7b185] bg-linear-to-b from-[#fffaf0] to-[#f3e7cf] align-middle text-[0.7rem] font-semibold leading-none text-[#5c4a2f] shadow-[inset_0_1px_2px_rgba(0,0,0,0.08)]">
   {ayah.number}
 </span>
 {"\u00A0\u00A0"}
@@ -914,17 +919,41 @@ export default function SessionClient({
   </button>
 
   <button
-    type="button"
-    aria-label="Play ayah audio"
-    className="flex h-9 w-9 items-center justify-center rounded-full transition hover:bg-black/5 active:bg-black/10"
-  >
-    <svg
-      viewBox="0 0 24 24"
-      className="h-4 w-4"
-      fill="currentColor"
-    >
-      <path d="M8 5.75c0-.82.9-1.31 1.58-.86l8.2 5.47a1.03 1.03 0 0 1 0 1.72l-8.2 5.47A1.03 1.03 0 0 1 8 16.69V5.75Z" />
-    </svg>
+  type="button"
+  aria-label="Play ayah audio"
+ onClick={() => {
+  if (!ayah.audioUrl) return;
+
+  if (playingAyah === ayah.number && audioElement) {
+    audioElement.pause();
+    setPlayingAyah(null);
+    return;
+  }
+
+  audioElement?.pause();
+
+  const audio = new Audio(ayah.audioUrl);
+  setAudioElement(audio);
+  setPlayingAyah(ayah.number);
+
+  audio.onended = () => {
+    setPlayingAyah(null);
+  };
+
+  audio.play();
+}}
+  className="flex h-9 w-9 items-center justify-center rounded-full transition hover:bg-black/5 active:bg-black/10"
+>
+    {playingAyah === ayah.number ? (
+  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor">
+    <path d="M7 5.5A1.5 1.5 0 0 1 8.5 4h1A1.5 1.5 0 0 1 11 5.5v13A1.5 1.5 0 0 1 9.5 20h-1A1.5 1.5 0 0 1 7 18.5v-13Z" />
+    <path d="M13 5.5A1.5 1.5 0 0 1 14.5 4h1A1.5 1.5 0 0 1 17 5.5v13a1.5 1.5 0 0 1-1.5 1.5h-1a1.5 1.5 0 0 1-1.5-1.5v-13Z" />
+  </svg>
+) : (
+  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor">
+    <path d="M8 5.75c0-.82.9-1.31 1.58-.86l8.2 5.47a1.03 1.03 0 0 1 0 1.72l-8.2 5.47A1.03 1.03 0 0 1 8 16.69V5.75Z" />
+  </svg>
+)}
   </button>
 </div>
                     </div>
@@ -972,7 +1001,7 @@ export default function SessionClient({
 
                       {tafsirIsOpen ? (
                         <p className="px-1 text-[15px] leading-7 text-[#5a554e]">
-                          Tafsir will be added here later.
+                          {ayah.tafsir || "Tafsir unavailable for this ayah."}
                         </p>
                       ) : null}
                     </div>
