@@ -1000,9 +1000,12 @@ const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
                       </button>
 
                       {tafsirIsOpen ? (
-                        <p className="px-1 text-[15px] leading-7 text-[#5a554e]">
-                          {ayah.tafsir || "Tafsir unavailable for this ayah."}
-                        </p>
+                        <p
+  className="px-1 text-[15px] leading-7 text-[#5a554e]"
+  dangerouslySetInnerHTML={{
+    __html: ayah.tafsir || "Tafsir unavailable for this ayah.",
+  }}
+/>
                       ) : null}
                     </div>
                   </Card>
