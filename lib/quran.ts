@@ -1,11 +1,37 @@
 // lib/quran.ts
 
+import { createClient } from "@supabase/supabase-js";
+
 type Verse = {
   number: number;
   arabic: string;
   translation: string;
-  tafsir: string;
+  explanation: string;
+  tafsir: string; // kept so old UI code does not break yet
   audioUrl: string;
+};
+
+type AyahExplanationRow = {
+  surah_number: number;
+  ayah_number: number;
+  text: string;
+};
+
+type QfTafsirItem = {
+  text: string;
+  verse_key: string;
+  chapter_id?: number;
+  verse_number?: number;
+};
+
+type QfTafsirResponse = {
+  tafsirs?: QfTafsirItem[];
+  tafsir?: QfTafsirItem[];
+  pagination?: {
+    current_page: number;
+    next_page: number | null;
+    total_pages: number;
+  };
 };
 
 let cachedToken: {
@@ -79,6 +105,8 @@ function cleanText(text: string): string {
   return text
     .replace(/<sup[^>]*>.*?<\/sup>/g, "")
     .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -87,6 +115,46 @@ function normalizeAudioUrl(url: string): string {
   if (!url) return "";
   if (url.startsWith("http")) return url;
   return `https://verses.quran.com/${url.replace(/^\/+/, "")}`;
+}
+
+function getSupabaseForExplanations() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error("Missing Supabase env vars for ayah explanations");
+  }
+
+  return createClient(supabaseUrl, supabaseAnonKey);
+}
+
+async function getStoredExplanationsRange(
+  surahNumber: number,
+  ayahStart: number,
+  ayahEnd: number
+): Promise<Map<number, string>> {
+  const supabase = getSupabaseForExplanations();
+
+  const { data, error } = await supabase
+    .from("ayah_explanations")
+    .select("surah_number, ayah_number, text")
+    .eq("surah_number", surahNumber)
+    .gte("ayah_number", ayahStart)
+    .lte("ayah_number", ayahEnd)
+    .order("ayah_number", { ascending: true });
+
+  if (error) {
+    console.error("Failed to fetch ayah explanations:", error);
+    return new Map();
+  }
+
+  const map = new Map<number, string>();
+
+  for (const row of (data ?? []) as AyahExplanationRow[]) {
+    map.set(row.ayah_number, row.text);
+  }
+
+  return map;
 }
 
 async function getAudioByChapter(
@@ -118,48 +186,70 @@ async function getAudioByChapter(
   return map;
 }
 
-async function getTafsirByChapter(
-  token: string | null,
-  baseUrl: string,
-  surahNumber: number
-) {
-  const tafsirId = process.env.QF_TAFSIR_ID;
-  if (!tafsirId) return new Map<string, string>();
+// This is for internal content work only.
+// It fetches Arabic Jalalayn from QF so we can rewrite it into Ashara explanations.
+export async function getArabicJalalaynTafsirRange(
+  surahNumber: number,
+  ayahStart: number,
+  ayahEnd: number
+): Promise<Record<number, string>> {
+  const token = await getAccessToken();
+  const baseUrl = process.env.QF_BASE_URL;
 
-  const url = `${baseUrl}/tafsirs/${tafsirId}/by_chapter/${surahNumber}?fields=verse_key,text&per_page=50`;
+  if (!baseUrl) {
+    throw new Error("Missing QF_BASE_URL env var");
+  }
 
-  async function fetchTafsir(activeToken: string | null) {
-    return fetch(url, {
-      headers: getHeaders(activeToken),
+  const tafsirId = "926";
+  const tafsirByAyah: Record<number, string> = {};
+  let page = 1;
+
+  while (true) {
+    const url =
+      `${baseUrl}/tafsirs/${tafsirId}/by_chapter/${surahNumber}` +
+      `?fields=chapter_id,verse_number,verse_key,text&page=${page}&per_page=50`;
+
+    const res = await fetch(url, {
+      headers: getHeaders(token),
       next: { revalidate: 60 * 60 },
     });
-  }
-  let res = await fetchTafsir(token);
 
-  if (res.status === 401 || res.status === 403) {
-    cachedToken = null;
-    const freshToken = await getAccessToken();
-    res = await fetchTafsir(freshToken);
-  }
-
-  if (!res.ok) {
-    console.log("TAFSIR ERROR:", res.status, await res.text());
-    return new Map<string, string>();
-  }
-
-  const data = await res.json();
-  console.log("TAFSIR RESPONSE:", JSON.stringify(data, null, 2));
-
-  const map = new Map<string, string>();
-  const tafsirItems = data.tafsirs ?? data.tafsir ?? [];
-
-  for (const item of tafsirItems) {
-    if (item.verse_key && item.text) {
-      map.set(item.verse_key, cleanText(item.text));
+    if (!res.ok) {
+      const errorText = await res.text();
+      throw new Error(
+        `Failed to fetch Arabic Jalalayn tafsir. Status: ${res.status}. Response: ${errorText}`
+      );
     }
+
+    const data: QfTafsirResponse = await res.json();
+    const items = data.tafsirs ?? data.tafsir ?? [];
+
+    for (const item of items) {
+      const verseNumber =
+        item.verse_number ?? Number(item.verse_key?.split(":")[1]);
+
+      if (
+        verseNumber >= ayahStart &&
+        verseNumber <= ayahEnd &&
+        item.text
+      ) {
+        tafsirByAyah[verseNumber] = cleanText(item.text);
+      }
+    }
+
+    const nextPage = data.pagination?.next_page;
+    if (!nextPage) break;
+
+    const highestVerseOnPage = Math.max(
+      ...items.map((item) => item.verse_number ?? Number(item.verse_key?.split(":")[1]))
+    );
+
+    if (highestVerseOnPage >= ayahEnd) break;
+
+    page = nextPage;
   }
 
-  return map;
+  return tafsirByAyah;
 }
 
 export async function getVerses(
@@ -176,13 +266,13 @@ export async function getVerses(
 
   const versesUrl = `${baseUrl}/verses/by_chapter/${surahNumber}?translations=20&fields=text_uthmani,verse_key,verse_number&per_page=300`;
 
-  const [versesRes, audioMap, tafsirMap] = await Promise.all([
+  const [versesRes, audioMap, explanationMap] = await Promise.all([
     fetch(versesUrl, {
       headers: getHeaders(token),
       next: { revalidate: 60 * 60 },
     }),
     getAudioByChapter(token, baseUrl, surahNumber),
-    getTafsirByChapter(token, baseUrl, surahNumber),
+    getStoredExplanationsRange(surahNumber, ayahStart, ayahEnd),
   ]);
 
   if (!versesRes.ok) {
@@ -201,12 +291,15 @@ export async function getVerses(
     )
     .map((ayah: any) => {
       const verseKey = ayah.verse_key ?? `${surahNumber}:${ayah.verse_number}`;
+      const explanation =
+        explanationMap.get(ayah.verse_number) ?? "Explanation coming soon.";
 
       return {
         number: ayah.verse_number,
         arabic: ayah.text_uthmani ?? "",
         translation: cleanText(ayah.translations?.[0]?.text ?? ""),
-        tafsir: tafsirMap.get(verseKey) ?? "",
+        explanation,
+        tafsir: explanation,
         audioUrl: audioMap.get(verseKey) ?? "",
       };
     });
